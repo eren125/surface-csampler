@@ -47,6 +47,7 @@ void PrintStringVector(vector<string> v){
 	for(int i=0;i<v.size();++i)
 		cout << v[i] << endl;
 }
+
 void PrintDoubleVector(vector<double> v){
 	for(int i=0;i<v.size();++i)
 		cout << v[i] << endl;
@@ -62,7 +63,7 @@ void Print2DVector(vector< vector<double> > myArray) {
   int width = 3, height = 3;
   for (int i = 0; i < height; ++i) {
     for (int j = 0; j < width; ++j) {
-        cout << myArray[i][j] << ' ';
+        cout << myArray[i][j] << "\t";
     }
     cout << endl;
   }
@@ -151,14 +152,11 @@ void CreateCartCoord(vector< vector<double> > frac_to_cart, map<string, vector<s
     structure_dict["_atom_site_cart_x"].push_back(to_string(x));
     structure_dict["_atom_site_cart_y"].push_back(to_string(y));
     structure_dict["_atom_site_cart_z"].push_back(to_string(z));
-    // cout << "Cartesian coordinate" << endl;
-    // cout << x << " ";
-    // cout << y << " ";
-    // cout << z << endl;
   }
 }
 
-void ReadCif(char *path) {
+// Read a cif and put main infos in a map
+void ReadCif(char *path, map<string, vector<string> > &structure_dict) {
   ifstream MyFile(path);
   string myText;
   vector<string> L;
@@ -179,23 +177,23 @@ void ReadCif(char *path) {
   loop_index.push_back(i);
   MyFile.close();
 
-  // cell infos
-  vector<string> cellVector;
+  // cell info read in the cif file
+  vector<string> cellCifInfo;
   for (size_t i = 0; i < cell_index.size(); ++i ) {
-    cellVector.push_back(L[cell_index[i]]);
+    cellCifInfo.push_back(L[cell_index[i]]);
   }
 
   double a, b, c;
   double alpha, beta, gamma;
   // split the lines and get values for a,b,c, alpha, beta, gamma
-  for (size_t i = 0; i < cellVector.size(); ++i ) {
-    // cout << cellVector[i] << endl;
-    AssignValue("_cell_length_a", cellVector[i], a);
-    AssignValue("_cell_length_b", cellVector[i], b);
-    AssignValue("_cell_length_c", cellVector[i], c);
-    AssignValue("_cell_angle_alpha", cellVector[i], alpha);
-    AssignValue("_cell_angle_beta", cellVector[i], beta);
-    AssignValue("_cell_angle_gamma", cellVector[i], gamma);
+  for (size_t i = 0; i < cellCifInfo.size(); ++i ) {
+    // cout << cellCifInfo[i] << endl;
+    AssignValue("_cell_length_a", cellCifInfo[i], a);
+    AssignValue("_cell_length_b", cellCifInfo[i], b);
+    AssignValue("_cell_length_c", cellCifInfo[i], c);
+    AssignValue("_cell_angle_alpha", cellCifInfo[i], alpha);
+    AssignValue("_cell_angle_beta", cellCifInfo[i], beta);
+    AssignValue("_cell_angle_gamma", cellCifInfo[i], gamma);
   }
   // Extract unitcell vector and angles to build conversion matrix (fract to cart)
   vector< vector<double> > frac_to_cart;
@@ -222,43 +220,44 @@ void ReadCif(char *path) {
     }
   }
   // extract using the index
-  vector<string> atomVector;
-  atomVector = vector<string>(L.begin()+begin_atom+1,L.begin()+end_atom);
-  // convert into a map (dictionary)
-  map<string, vector<string> > structure_dict;
+  vector<string> atomCifInfo;
+  atomCifInfo = vector<string>(L.begin()+begin_atom+1,L.begin()+end_atom);
+  // TODO check that _atom_site_fract_x is in the columns
   vector<string> columns_values;
   int first_indexes = 0;
-  while (atomVector[first_indexes].find("_atom") != string::npos) {
-    string col_name = strip(atomVector[first_indexes]);
+  while (atomCifInfo[first_indexes].find("_atom") != string::npos) {
+    string col_name = strip(atomCifInfo[first_indexes]);
     columns_values.push_back(col_name);
     structure_dict[col_name] = {};
     first_indexes++;
   }
-
-  for (size_t i = first_indexes; i < atomVector.size(); ++i ) {
-    // cout << atomVector[i] << endl;
+  // loop over the Information about atoms contained in the cif
+  for (size_t i = first_indexes; i < atomCifInfo.size(); ++i ) {
     vector<string> split_row_temp;
-    SplitString(atomVector[i], split_row_temp);
+    SplitString(atomCifInfo[i], split_row_temp);
     int k = 0;
     for (size_t j = 0; j < columns_values.size(); ++j ) {
-      // cout << x.first << endl;
-      // PrintStringVector(structure_dict[x.first]);
       structure_dict[columns_values[j]].push_back(split_row_temp[k]);
       k++;
     }
   }
+  // Calculate cartesian coordinates
+  CreateCartCoord(frac_to_cart, structure_dict);
+  
   // PrintStringVector(structure_dict["_atom_site_type_symbol"]);
   // PrintStringVector(structure_dict["_atom_site_fract_x"]);
   // PrintStringVector(structure_dict["_atom_site_fract_y"]);
   // PrintStringVector(structure_dict["_atom_site_fract_z"]);
   // PrintStringVector(structure_dict["_atom_site_charge"]);
+  // PrintStringVector(structure_dict["_atom_site_cart_x"]);
+  // PrintStringVector(structure_dict["_atom_site_cart_y"]);
+  // PrintStringVector(structure_dict["_atom_site_cart_z"]);
+  // TODO if atom_site_type_symbol does not exist...
+  // TODO check that the main columns used are here and ways to replace them
+}
 
-  // Calculate cartesian coordinates
-  CreateCartCoord(frac_to_cart, structure_dict);
-  PrintStringVector(structure_dict["_atom_site_cart_x"]);
-  PrintStringVector(structure_dict["_atom_site_cart_y"]);
-  PrintStringVector(structure_dict["_atom_site_cart_z"]);
-  // TODO if atom_site_type_symbol does not exist ...
+void PeriodicBoundaryCondition(vector<double> X,vector<double> Y,vector<double> Z) {
+
 }
 
 int main() {
@@ -270,9 +269,11 @@ int main() {
   T = 298.0;
   cout << R*T;
   cout << " kJ/mol\n";
-  ReadCif((char *)"KAXQIL_clean.cif");
-  vector<string> Vect;
-  string str = " a  b    c       d";
+  map<string, vector<string> > structure_dict;
+  ReadCif((char *)"KAXQIL_clean.cif", structure_dict);
+  // PrintStringVector(structure_dict["_atom_site_cart_x"]);
+  // vector<string> Vect;
+  // string str = " a  b    c       d";
   // SplitString(, Vect);
   // PrintVector(Vect);
   // string str_strip = strip(str);
