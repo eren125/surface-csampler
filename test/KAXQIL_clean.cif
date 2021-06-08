@@ -1,5 +1,5 @@
 {'_ref': 'TBD', '_srcid': 'CAKYAQ_clean', 'submitters': [{'name': 'Dalar Nazarian Jeff Camp and David Sholl', 'email': 'dalar@gatech.edu jcamp6@gatech.edu'}], '_method': 'VASP DFT with PBE;DDEC'}
-data_
+data_CaH8C14SO6
 _symmetry_space_group_name_H-M   'P 1'
 _cell_length_a   5.56730000
 _cell_length_b   11.82139980

@@ -3,7 +3,6 @@
 #include <set>
 #include <gemmi/cif.hpp>
 #include <gemmi/smcif.hpp>
-
 double molecular_mass(std::vector<gemmi::SmallStructure::Site> const &sites)
 {
   double mass = 0;
@@ -11,7 +10,6 @@ double molecular_mass(std::vector<gemmi::SmallStructure::Site> const &sites)
     mass += site.element.weight() * site.occ;
   return mass;
 }
-
 struct Properties {
   double area;
   double energy;

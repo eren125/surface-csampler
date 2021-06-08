@@ -13,15 +13,15 @@
 using namespace std;
 
 // String Manipulations
-string strip(const string &inpt)
+string strip(string sep, const string &inpt)
 {
-    auto start_it = inpt.begin();
-    auto end_it = inpt.rbegin();
-    while (isspace(*start_it))
-        ++start_it;
-    while (isspace(*end_it))
-        ++end_it;
-    return string(start_it, end_it.base());
+  auto start_it = inpt.begin();
+  auto end_it = inpt.rbegin();
+  while ((*start_it)==sep)
+      ++start_it;
+  while ((*end_it)==sep)
+      ++end_it;
+  return string(start_it, end_it.base());
 }
 
 void SplitString(string s, vector<string> &v){
