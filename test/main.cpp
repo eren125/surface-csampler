@@ -2,12 +2,13 @@
 #include <fstream>
 #include <chrono>
 #include <random>
-#include <set>
+#include <math.h>
 #include <gemmi/cif.hpp>
 #include <gemmi/smcif.hpp>
 #include <gemmi/unitcell.hpp>
 
-#define PI 3.1415926535897932
+// #define PI 3.1415926535897932
+#define R 8.31446261815324e-3 // kJ/K/mol
 
 using namespace std;
 
@@ -52,8 +53,7 @@ string ReplaceString(string subject, const string& search, const string& replace
   return subject;
 }
 
-string strip(string sep, string inpt)
-{
+string strip(string sep, string inpt) {
   int start_it = 0;
   int end_it = inpt.size()-sep.size();
   while (inpt.substr(start_it,sep.size())==sep)
@@ -97,14 +97,12 @@ map<string, vector<string> >  ReadFF(string forcefield) {
   }
   string myText;
   while (getline (MyFile, myText)) {
-    cout << myText << endl;
     L.push_back(myText);
   }
   vector<string> forcefieldDefInfo(L.begin() + 7, L.end() - 2);
-  PrintStringVector(forcefieldDefInfo);
-  cout << L[6].substr(2) << endl;
+  // PrintStringVector(forcefieldDefInfo);
   vector <string> columns_values = SplitString(L[6].substr(2), ", ");
-  PrintStringVector(columns_values);
+  // PrintStringVector(columns_values);
 
   for (size_t i = 0; i < forcefieldDefInfo.size(); ++i ) {
     vector<string> split_row_temp = SplitString(ReplaceString(forcefieldDefInfo[i],"\t"," "), " ");
@@ -131,15 +129,57 @@ vector<string> get_epsilon_sigma(string element, map<string, vector<string> > fo
   return epsilon_sigma;
 }
 
+double LJEnergy_shifted(gemmi::Vec3 ads_position, vector<tuple<double, double, gemmi::Position> > neighbors, double cutoff) {
+  double Energy = 0;
+  for(auto neigh: neighbors) {
+    gemmi::Position pos_neigh = get<2>(neigh);
+    double distance = ads_position.dist(pos_neigh);
+    if (distance<cutoff) {
+      double epsilon = get<0>(neigh);
+      double sigma = get<1>(neigh);
+      Energy += 4 * epsilon * ( pow(sigma / distance,12) - pow(sigma / cutoff,12) - pow(sigma / distance,6) + pow(sigma / cutoff,6) );
+    }
+  }
+  return R * Energy;
+}
+
+// void CreateFracToCartMatrix(double a, double b, double c, double alpha, double beta, double gamma, vector< vector<double> > &frac_to_cart) {
+//   const double deg_to_rad = PI/180;
+//   alpha = deg_to_rad * alpha;
+//   beta = deg_to_rad * beta;
+//   gamma = deg_to_rad * gamma;
+//   double n = ( cos(alpha) - cos(gamma)*cos(beta) ) / sin(gamma);
+//   frac_to_cart[0][0] = a;              // lx
+//   frac_to_cart[0][1] = b * cos(gamma); // xy
+//   frac_to_cart[0][2] = c * cos(beta);  // xz
+//   frac_to_cart[1][0] = 0;              // 
+//   frac_to_cart[1][1] = b * sin(gamma); // ly
+//   frac_to_cart[1][2] = c * n;          // yz
+//   frac_to_cart[2][0] = 0;              //
+//   frac_to_cart[2][1] = 0;              //
+//   frac_to_cart[2][2] = c * sqrt( pow(sin(beta),2) - pow(n,2) ); // lz
+// }
+
 int main(int argc, char* argv[])
 {
-  auto block = gemmi::cif::read_file(argv[1]).sole_block();
-  auto st = gemmi::make_small_structure_from_block(block);
-  cout << st.spacegroup_hm << endl;
-  cout << "Number of atoms: " << st.sites.size() << endl;
+  // Try catch error (when file format wrong)
+  auto structure_file = argv[1];
+  string forcefield = argv[2];
+  double temperature = stod(argv[3]);
 
-  string forcefield = "UFF";
+  auto block = gemmi::cif::read_file(structure_file).sole_block();
+  gemmi::SmallStructure structure = gemmi::make_small_structure_from_block(block);
+
   map<string, vector<string> > forcefield_dict = ReadFF(forcefield);
+
+  cout << structure.spacegroup_hm << endl;
+  cout << "Number of atoms: " << structure.sites.size() << endl;
+  cout << "a: " << structure.cell.a << endl;
+  cout << "b: " << structure.cell.b << endl;
+  cout << "c: " << structure.cell.c << endl;
+  cout << "alpha: " << structure.cell.alpha << endl;
+  cout << "beta: " << structure.cell.beta << endl;
+  cout << "gamma: " << structure.cell.gamma << endl;
 
   int num_steps = 200;
   double cutoff = 12.0;
@@ -147,26 +187,56 @@ int main(int argc, char* argv[])
   vector <string> epsilon_sigma_temp = get_epsilon_sigma(element_ads, forcefield_dict);
   double epsilon_ads = stod(epsilon_sigma_temp[0]);
   double sigma_ads = stod(epsilon_sigma_temp[1]);
-  for (auto site: st.sites) {
+
+  // // loop to create a map of potential neighbors
+  vector<tuple<double, double, gemmi::Position> > neighbors;
+  for (auto site: structure.sites) {  
+    string element_host = site.type_symbol;  
+    vector <string> epsilon_sigma_temp = get_epsilon_sigma(element_host + "_", forcefield_dict);
+    // Lorentz-Berthelot
+    double epsilon = sqrt(stod(epsilon_sigma_temp[0])*epsilon_ads);
+    double sigma = (stod(epsilon_sigma_temp[1])+sigma_ads)/2;
+    gemmi::Position pos = gemmi::Position(structure.cell.orthogonalize(site.fract));
+    neighbors.push_back(make_tuple(epsilon, sigma, pos));
+    // for (int n = )
+    
+  }
+  // loop over the sites to calculate LJ_energies
+  double boltzmann_energy_lj = 0;
+  double sum_exp_energy = 0;
+  for (auto site: structure.sites) {
     string element_host = site.type_symbol;
     vector <string> epsilon_sigma_temp = get_epsilon_sigma(element_host + "_", forcefield_dict);
     double sigma_host = stod(epsilon_sigma_temp[1]);
     double radius = pow(2,1/6) * (sigma_ads+sigma_host)/2;
+
     // cout << "element: " << element_host << endl;
     // cout << "sigma host: " << sigma_host << endl;
     // cout << "radius: " << radius << endl;
-    
+
+    gemmi::Vec3 Vsite = gemmi::Vec3(structure.cell.orthogonalize(site.fract));
+    vector<double> list_energy_lj;
+    for (int i = 0; i < num_steps; i++) {
+      gemmi::Vec3 V = randomSphereVector();
+      V *= radius;
+      double energy_lj = LJEnergy_shifted(V+Vsite, neighbors, cutoff);
+      boltzmann_energy_lj += exp(-energy_lj/(R*temperature)) * energy_lj;
+      sum_exp_energy += exp(-energy_lj/(R*temperature));
+      // cout << energy_lj << endl;
+    }
   }
-  gemmi::Vec3 U = randomSphereVector();
-  gemmi::Vec3 V = randomSphereVector();
-  PrintV3(U);
-  PrintV3(V);
-  double d = gemmi::Position(U).dist(gemmi::Position(V));
-  cout << d << endl;
-  double radius = 2.0;
-  U *= 2.0;
-  PrintV3(U);
-  cout << U.length() << endl;
+  cout << boltzmann_energy_lj/sum_exp_energy <<endl;
+
+  // gemmi::Vec3 U = randomSphereVector();
+  // gemmi::Vec3 V = randomSphereVector();
+  // PrintV3(U);
+  // PrintV3(V);
+  // double d = gemmi::Position(U).dist(gemmi::Position(V));
+  // cout << d << endl;
+  // double radius = 2.0;
+  // U *= 2.0;
+  // PrintV3(U);
+  // cout << U.length() << endl;
 }
 // Understand how the PBC works
 // TODO calculate the energies on surface

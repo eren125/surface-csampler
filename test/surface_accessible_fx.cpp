@@ -3,6 +3,7 @@
 #include <set>
 #include <gemmi/cif.hpp>
 #include <gemmi/smcif.hpp>
+
 double molecular_mass(std::vector<gemmi::SmallStructure::Site> const &sites)
 {
   double mass = 0;
@@ -46,13 +47,14 @@ int main(int argc, char* argv[])
     for (auto n: allsites)
     {
       if (n.label == site.label)
-	continue;
+	      continue;
       auto vec_fract = (n.fract - site.fract).wrap_to_zero();
       auto vec_cart = st.cell.orthogonalize_difference(vec_fract);
       auto dist2 = vec_cart.length_sq();
       if (dist2 < 12*12)
         neighbors.push_back(std::make_pair(n, vec_cart));
     }
+    std::cout << neighbors.size() << std::endl;
     Properties m;
     int surf = 0;
     for (int i = 0; i < 200; i++)
@@ -72,7 +74,7 @@ int main(int argc, char* argv[])
 	surf++;
     }
     m.area = double(surf) / 200;
-    std::cout << site.label << " " << m.area << std::endl;
+    // std::cout << site.label << " " << m.area << std::endl;
     prop[site.label] = m;
   }
   std::cout << "Molecular weigth: " << molecular_mass(allsites) << std::endl;

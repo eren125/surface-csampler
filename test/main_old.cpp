@@ -99,15 +99,15 @@ void CreateFracToCartMatrix(double a, double b, double c, double alpha, double b
   beta = deg_to_rad * beta;
   gamma = deg_to_rad * gamma;
   double n = ( cos(alpha) - cos(gamma)*cos(beta) ) / sin(gamma);
-  frac_to_cart[0][0] = a;
-  frac_to_cart[0][1] = b * cos(gamma);
-  frac_to_cart[0][2] = c * cos(beta);
-  frac_to_cart[1][0] = 0;
-  frac_to_cart[1][1] = b * sin(gamma);
-  frac_to_cart[1][2] = c * n;
-  frac_to_cart[2][0] = 0;
-  frac_to_cart[2][1] = 0;
-  frac_to_cart[2][2] = c * sqrt( pow(sin(beta),2) - pow(n,2) );
+  frac_to_cart[0][0] = a;              // lx
+  frac_to_cart[0][1] = b * cos(gamma); // xy
+  frac_to_cart[0][2] = c * cos(beta);  // xz
+  frac_to_cart[1][0] = 0;              // 
+  frac_to_cart[1][1] = b * sin(gamma); // ly
+  frac_to_cart[1][2] = c * n;          // yz
+  frac_to_cart[2][0] = 0;              //
+  frac_to_cart[2][1] = 0;              //
+  frac_to_cart[2][2] = c * sqrt( pow(sin(beta),2) - pow(n,2) ); // lz
 }
 
 void CreateCartToFracMatrix(double a, double b, double c, double alpha, double beta, double gamma, vector< vector<double> > &cart_to_frac) {
