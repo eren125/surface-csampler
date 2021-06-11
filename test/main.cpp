@@ -189,6 +189,14 @@ int main(int argc, char* argv[])
   double sigma_ads = stod(epsilon_sigma_temp[1]);
 
   // // loop to create a map of potential neighbors
+  int n_max = (int)round(cutoff/structure.cell.a);
+  int m_max = (int)round(cutoff/structure.cell.b);
+  int l_max = (int)round(cutoff/structure.cell.c);
+  cout << n_max << endl;
+  cout << m_max << endl;
+  cout << l_max << endl;
+
+
   vector<tuple<double, double, gemmi::Position> > neighbors;
   for (auto site: structure.sites) {  
     string element_host = site.type_symbol;  
@@ -196,9 +204,18 @@ int main(int argc, char* argv[])
     // Lorentz-Berthelot
     double epsilon = sqrt(stod(epsilon_sigma_temp[0])*epsilon_ads);
     double sigma = (stod(epsilon_sigma_temp[1])+sigma_ads)/2;
-    gemmi::Position pos = gemmi::Position(structure.cell.orthogonalize(site.fract));
-    neighbors.push_back(make_tuple(epsilon, sigma, pos));
-    // for (int n = )
+    for (int n = -n_max; (n<n_max+1); ++n){
+      for (int m = -m_max; (m<m_max+1); ++m) {
+        for (int l = -l_max; (l<l_max+1); ++l) {
+          gemmi::Fractional coord = site.fract;
+          coord.x = coord.x + n;
+          coord.y = coord.y + m;
+          coord.z = coord.z + l;
+          gemmi::Position pos = gemmi::Position(structure.cell.orthogonalize(coord));
+          neighbors.push_back(make_tuple(epsilon, sigma, pos));
+        }
+      }
+    }
     
   }
   // loop over the sites to calculate LJ_energies
