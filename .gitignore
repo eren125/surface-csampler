@@ -1,3 +1,7 @@
+# data
+test/out
+
+# build
 build
 # Prerequisites
 *.d

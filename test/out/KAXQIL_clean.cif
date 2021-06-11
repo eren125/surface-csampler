@@ -1,6 +1,6 @@
 data_
 
-_audit_creation_date      'June 4, 2021'
+_audit_creation_date      'June 11, 2021'
 _audit_creation_method    'Draft CIF file generated with Atomsk'
  
 _chemical_name_common             ?
