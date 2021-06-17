@@ -167,6 +167,7 @@ int main(int argc, char* argv[])
   double temperature = stod(argv[3]);
   double cutoff = stod(argv[4]);
   int num_steps = stoi(argv[5]);
+  string element_ads = argv[6];
 
   auto block = gemmi::cif::read_file(structure_file).sole_block();
   gemmi::SmallStructure structure = gemmi::make_small_structure_from_block(block);
@@ -182,15 +183,14 @@ int main(int argc, char* argv[])
   // cout << "beta: " << structure.cell.beta << endl;
   // cout << "gamma: " << structure.cell.gamma << endl;
 
-  string element_ads = "Xe";
   vector <string> epsilon_sigma_temp = get_epsilon_sigma(element_ads, forcefield_dict);
   double epsilon_ads = stod(epsilon_sigma_temp[0]);
   double sigma_ads = stod(epsilon_sigma_temp[1]);
 
   // // loop to create a map of potential neighbors
-  int n_max = (int)round(cutoff/structure.cell.a);
-  int m_max = (int)round(cutoff/structure.cell.b);
-  int l_max = (int)round(cutoff/structure.cell.c);
+  int n_max = (int)round(cutoff/structure.cell.a)+1;
+  int m_max = (int)round(cutoff/structure.cell.b)+1;
+  int l_max = (int)round(cutoff/structure.cell.c)+1;
 
   // cout << n_max << " " << m_max << " " << l_max << endl;
 
