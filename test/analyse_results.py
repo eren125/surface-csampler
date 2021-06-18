@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 # %%
-df = pd.read_csv('results_100_+0.csv')
+df = pd.read_csv('results_500.csv')
 df['Structures'] = df['structure_file'].str.strip('out/').str.strip('.cif')
 df_widom = pd.read_csv('Screening_CoReMOF_Dataset.csv')
 
@@ -57,6 +57,5 @@ plt.xlim(right=30)
 df_plot['time'].hist(bins=500)
 # %%
 df_plot['dr'] = abs(df_plot['enthalpy']-df_plot['H_Xe_0_widom'])/min(df_plot['enthalpy']-df_plot['H_Xe_0_widom'])
-# %%
 
 # %%

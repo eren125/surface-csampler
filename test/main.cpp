@@ -188,9 +188,9 @@ int main(int argc, char* argv[])
   double sigma_ads = stod(epsilon_sigma_temp[1]);
 
   // // loop to create a map of potential neighbors
-  int n_max = (int)round(cutoff/structure.cell.a)+1;
-  int m_max = (int)round(cutoff/structure.cell.b)+1;
-  int l_max = (int)round(cutoff/structure.cell.c)+1;
+  int n_max = (int)floor(cutoff/structure.cell.a)+1;
+  int m_max = (int)floor(cutoff/structure.cell.b)+1;
+  int l_max = (int)floor(cutoff/structure.cell.c)+1;
 
   // cout << n_max << " " << m_max << " " << l_max << endl;
 
