@@ -5,10 +5,17 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 # %%
-df = pd.read_csv('results_100.csv')
+df = pd.read_csv('results_100_surf.csv')
 df['Structures'] = df['structure_file'].str.strip('out/').str.strip('.cif')
 df_widom = pd.read_csv('Screening_CoReMOF_Dataset.csv')
 
+# %%
+# check nans
+print(len(df.dropna()))
+print(len(df))
+
+df.dropna(inplace=True)
+# df.fillna(33,inplace=True)
 # %%
 df_merge = pd.merge(df_widom,df, on="Structures", how="left")
 df_plot = df_merge[~(df_merge['DISORDER']=='DISORDER')]
