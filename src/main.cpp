@@ -141,23 +141,6 @@ double LJEnergy_shifted(gemmi::Vec3 ads_position, vector<tuple<double, double, g
   return R * Energy;
 }
 
-// void CreateFracToCartMatrix(double a, double b, double c, double alpha, double beta, double gamma, vector< vector<double> > &frac_to_cart) {
-//   const double deg_to_rad = PI/180;
-//   alpha = deg_to_rad * alpha;
-//   beta = deg_to_rad * beta;
-//   gamma = deg_to_rad * gamma;
-//   double n = ( cos(alpha) - cos(gamma)*cos(beta) ) / sin(gamma);
-//   frac_to_cart[0][0] = a;              // lx
-//   frac_to_cart[0][1] = b * cos(gamma); // xy
-//   frac_to_cart[0][2] = c * cos(beta);  // xz
-//   frac_to_cart[1][0] = 0;              // 
-//   frac_to_cart[1][1] = b * sin(gamma); // ly
-//   frac_to_cart[1][2] = c * n;          // yz
-//   frac_to_cart[2][0] = 0;              //
-//   frac_to_cart[2][1] = 0;              //
-//   frac_to_cart[2][2] = c * sqrt( pow(sin(beta),2) - pow(n,2) ); // lz
-// }
-
 int main(int argc, char* argv[])
 {
   auto t_start = std::chrono::high_resolution_clock::now();

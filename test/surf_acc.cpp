@@ -3,6 +3,7 @@
 #include <random>
 #include <chrono>
 #include <set>
+#include <limits>
 #include <gemmi/cif.hpp>
 #include <gemmi/smcif.hpp>
 
@@ -107,12 +108,17 @@ bool check_free(gemmi::Vec3 ads_position, vector<tuple<double, double, gemmi::Po
   return free;
 }
 
-double LJEnergy_shifted(gemmi::Vec3 ads_position, vector<tuple<double, double, gemmi::Position> > neighbors, double cutoff) {
+double LJEnergy_shifted(gemmi::Vec3 ads_position, vector<tuple<double, double, gemmi::Position> > neighbors, double cutoff, double acc_threshold) {
   double Energy = 0;
   for(auto neigh: neighbors) {
     gemmi::Position pos_neigh = get<2>(neigh);
     double distance = ads_position.dist(pos_neigh);
-    if (distance<cutoff) {
+    double sigma = get<1>(neigh);
+    if (distance<sigma*acc_threshold) {
+      Energy = std::numeric_limits<double>::infinity();
+      break;
+    }
+    else if (distance<cutoff) {
       double epsilon = get<0>(neigh);
       double sigma = get<1>(neigh);
       Energy += 4 * epsilon * ( pow(sigma / distance,12) - pow(sigma / cutoff,12) - pow(sigma / distance,6) + pow(sigma / cutoff,6) );
@@ -184,13 +190,15 @@ int main(int argc, char* argv[]) {
     for (int i = 0; i < num_steps; i++) {
       gemmi::Vec3 V = randomSphereVector();
       V *= radius;
-      bool free = check_free(V+Vsite, neighbors, acc_threshold);
-      if (free) {
-	    surf++;
-        double energy_lj = LJEnergy_shifted(V+Vsite, neighbors, cutoff);
-        boltzmann_energy_lj += exp(-energy_lj/(R*temperature)) * energy_lj;
-        sum_exp_energy += exp(-energy_lj/(R*temperature));
-      }
+        surf++;
+        double energy_lj = LJEnergy_shifted(V+Vsite, neighbors, cutoff, acc_threshold);
+	if (energy_lj == std::numeric_limits<double>::infinity()) {
+	}
+	else {
+	  double exp_en = exp(-energy_lj/(R*temperature));
+          boltzmann_energy_lj += exp_en * energy_lj;
+          sum_exp_energy += exp_en;
+	}
     }
   }
   auto t_end = chrono::high_resolution_clock::now();
