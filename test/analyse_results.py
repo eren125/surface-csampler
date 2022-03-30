@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 # %%
-df = pd.read_csv('results_100_surf.csv')
+df = pd.read_csv('results_500.csv')
 df['Structures'] = df['structure_file'].str.strip('out/').str.strip('.cif')
 df_widom = pd.read_csv('Screening_CoReMOF_Dataset.csv')
 
@@ -14,8 +14,8 @@ df_widom = pd.read_csv('Screening_CoReMOF_Dataset.csv')
 print(len(df.dropna()))
 print(len(df))
 
-df.dropna(inplace=True)
-# df.fillna(33,inplace=True)
+# df.dropna(inplace=True)
+df.fillna(33,inplace=True)
 # %%
 df_merge = pd.merge(df_widom,df, on="Structures", how="left")
 df_plot = df_merge[~(df_merge['DISORDER']=='DISORDER')]
@@ -63,6 +63,10 @@ df_plot['time'].describe()
 plt.xlim(right=30)
 df_plot['time'].hist(bins=500)
 # %%
-df_plot['dr'] = abs(df_plot['enthalpy']-df_plot['H_Xe_0_widom'])/min(df_plot['enthalpy']-df_plot['H_Xe_0_widom'])
+# df_plot['dr'] = abs(df_plot['enthalpy']-df_plot['H_Xe_0_widom'])/df_plot[['enthalpy','H_Xe_0_widom']].min(axis=)
 
+# %%
+mse = ((df_plot['enthalpy']-df_plot['H_Xe_0_widom'])**2).mean()
+# %%
+np.sqrt(mse)
 # %%
