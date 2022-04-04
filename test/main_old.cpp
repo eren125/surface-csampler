@@ -1,37 +1,65 @@
 #include <iostream>
-#include <sstream>
 #include <fstream>
-#include <string>
-#include <vector>
-#include <cstdlib>
-#include <map>
+#include <chrono>
+#include <random>
 #include <math.h>
-#include <cctype>
+#include <gemmi/cif.hpp>
+#include <gemmi/smcif.hpp>
+#include <gemmi/unitcell.hpp>
 
-#define PI 3.1415926535897932
+#define R 8.31446261815324e-3 // kJ/K/mol
 
 using namespace std;
 
-// String Manipulations
-string strip(string sep, const string &inpt)
-{
-  auto start_it = inpt.begin();
-  auto end_it = inpt.rbegin();
-  while ((*start_it)==sep)
-      ++start_it;
-  while ((*end_it)==sep)
-      ++end_it;
-  return string(start_it, end_it.base());
+gemmi::Vec3 randomSphereVector() {
+  unsigned seed = chrono::system_clock::now().time_since_epoch().count();
+  default_random_engine generator (seed);
+  normal_distribution<double> normal_distrib (0.0,1.0);
+  auto v = gemmi::Vec3(normal_distrib(generator), normal_distrib(generator), normal_distrib(generator));
+  return v.normalized();
 }
 
-void SplitString(string s, vector<string> &v){
+void PrintStringVector(vector<string> v) {
+	for(int i=0;i<v.size();++i)
+		cout << v[i] << endl;
+  // cout << endl;
+}
+
+void PrintV3(gemmi::Vec3 v){
+	cout << v.x << "\t";
+	cout << v.y << "\t";
+	cout << v.z << endl;
+}
+
+string ReplaceString(string subject, const string& search, const string& replace) {
+  size_t pos = 0;
+  while ((pos = subject.find(search, pos)) != string::npos) {
+    subject.replace(pos, search.length(), replace);
+    pos += replace.length();
+  }
+  return subject;
+}
+
+string strip(string sep, string inpt) {
+  int start_it = 0;
+  int end_it = inpt.size()-sep.size();
+  while (inpt.substr(start_it,sep.size())==sep)
+    start_it = start_it + sep.size();
+  while (inpt.substr(end_it,sep.size())==sep)
+    end_it = end_it - sep.size();
+  return inpt.substr(start_it, end_it-start_it+1);
+}
+
+vector<string> SplitString(string s, string sep){
+  vector<string> v;
 	string temp = "";
 	for(int i=0;i<s.length();++i){
-		if(s[i]==' '){
+		if(s.substr(i,sep.size())==sep){
       if(temp!=""){
 			  v.push_back(temp);
       }
 			temp = "";
+      i=i+sep.size()-1;
 		}
 		else{
 			temp.push_back(s[i]);
@@ -40,244 +68,147 @@ void SplitString(string s, vector<string> &v){
   if(temp!=""){
     v.push_back(temp);
   }
+  return v;
 }
 
-// Vector Manipulations
-void PrintStringVector(vector<string> v){
-	for(int i=0;i<v.size();++i)
-		cout << v[i] << " ";
-  cout << endl;
-}
-
-void PrintDoubleVector(vector<double> v){
-	for(int i=0;i<v.size();++i)
-		cout << v[i] << endl;
-}
-
-void init_2Dvector(vector<vector<double> >& vec, int x_dim, int y_dim){
-    vec.resize(x_dim);
-    for(int i=0; i < vec.size(); i++)
-         vec[i].resize(y_dim);
-}
-
-void Print2DVector(vector< vector<double> > myArray) {
-  int width = 3, height = 3;
-  for (int i = 0; i < height; ++i) {
-    for (int j = 0; j < width; ++j) {
-        cout << myArray[i][j] << "\t";
-    }
-    cout << endl;
-  }
-}
-
-void MatMul3x3(vector< vector<double> > &Mat_1, vector< vector<double> > &Mat_2, vector< vector<double> > &Mat_3) {
-  for(int i=0; i<3;i++) {
-    for(int j=0;j<3;j++) {
-      Mat_3[i][j] = 0;
-      for(int k=0;k<3;k++) {
-        Mat_3[i][j] += Mat_1[i][k] * Mat_2[k][j];
-      }
-    }
-  }
-}
-
-// Extraction of values
-void AssignValue(string tag, string line, double &var) {
-  if (line.find(tag) != string::npos) {
-    vector<string> v_temp;
-    SplitString(line, v_temp);
-    var = stod(v_temp[1]);
-    cout << tag << " ";
-    cout << var << endl;
-  }
-}
-
-// Conversion matrixes
-void CreateFracToCartMatrix(double a, double b, double c, double alpha, double beta, double gamma, vector< vector<double> > &frac_to_cart) {
-  const double deg_to_rad = PI/180;
-  alpha = deg_to_rad * alpha;
-  beta = deg_to_rad * beta;
-  gamma = deg_to_rad * gamma;
-  double n = ( cos(alpha) - cos(gamma)*cos(beta) ) / sin(gamma);
-  frac_to_cart[0][0] = a;              // lx
-  frac_to_cart[0][1] = b * cos(gamma); // xy
-  frac_to_cart[0][2] = c * cos(beta);  // xz
-  frac_to_cart[1][0] = 0;              // 
-  frac_to_cart[1][1] = b * sin(gamma); // ly
-  frac_to_cart[1][2] = c * n;          // yz
-  frac_to_cart[2][0] = 0;              //
-  frac_to_cart[2][1] = 0;              //
-  frac_to_cart[2][2] = c * sqrt( pow(sin(beta),2) - pow(n,2) ); // lz
-}
-
-void CreateCartToFracMatrix(double a, double b, double c, double alpha, double beta, double gamma, vector< vector<double> > &cart_to_frac) {
-  const double deg_to_rad = PI/180;
-  alpha = deg_to_rad * alpha;
-  beta = deg_to_rad * beta;
-  gamma = deg_to_rad * gamma;
-  double n = ( cos(alpha) - cos(gamma)*cos(beta) ) / sin(gamma);
-  double omega = a * b * c * sqrt(1 - pow(cos(alpha),2) - pow(cos(beta),2) - pow(cos(gamma),2) + 2*cos(alpha)*cos(beta)*cos(gamma) );
-  cart_to_frac[0][0] = 1/a;
-  cart_to_frac[0][1] = - cos(gamma) / (a * sin(gamma));
-  cart_to_frac[0][2] = b*c * (cos(alpha)*cos(gamma) - cos(beta)) / (omega * sin(gamma));
-  cart_to_frac[1][0] = 0;
-  cart_to_frac[1][1] = 1 / (b * sin(gamma));
-  cart_to_frac[1][2] = a*c * (cos(beta)*cos(gamma) - cos(alpha)) / (omega * sin(gamma));
-  cart_to_frac[2][0] = 0;
-  cart_to_frac[2][1] = 0;
-  cart_to_frac[2][2] = 1 / (c * sqrt( pow(sin(beta),2) - pow(n,2) ));
-}
-
-// Conversion of one
-double ConvertFracToCart(double x_frac, double y_frac, double z_frac, vector<double> row) {
-  int length = row.size();
-  if (length==3) {
-    return(x_frac*row[0] + y_frac*row[1] + z_frac*row[2]);
-  } else {
-    cout << "Error: not the right length" << endl;
-    return(NAN);
-  }
-}
-
-void CreateCartCoord(vector< vector<double> > frac_to_cart, map<string, vector<string> > &structure_dict) {
-  vector<double> frac_to_cart_row_0(frac_to_cart[0].begin(), frac_to_cart[0].end());
-  vector<double> frac_to_cart_row_1(frac_to_cart[1].begin(), frac_to_cart[1].end());
-  vector<double> frac_to_cart_row_2(frac_to_cart[2].begin(), frac_to_cart[2].end());
-  structure_dict["_atom_site_cart_x"] = {};
-  structure_dict["_atom_site_cart_y"] = {};
-  structure_dict["_atom_site_cart_z"] = {};
-  for (size_t i=0; i<structure_dict["_atom_site_fract_x"].size(); ++i) {
-    double x = ConvertFracToCart(stod(structure_dict["_atom_site_fract_x"][i]),stod(structure_dict["_atom_site_fract_y"][i]),stod(structure_dict["_atom_site_fract_z"][i]), frac_to_cart_row_0);
-    double y = ConvertFracToCart(stod(structure_dict["_atom_site_fract_x"][i]),stod(structure_dict["_atom_site_fract_y"][i]),stod(structure_dict["_atom_site_fract_z"][i]), frac_to_cart_row_1);
-    double z = ConvertFracToCart(stod(structure_dict["_atom_site_fract_x"][i]),stod(structure_dict["_atom_site_fract_y"][i]),stod(structure_dict["_atom_site_fract_z"][i]), frac_to_cart_row_2);
-    structure_dict["_atom_site_cart_x"].push_back(to_string(x));
-    structure_dict["_atom_site_cart_y"].push_back(to_string(y));
-    structure_dict["_atom_site_cart_z"].push_back(to_string(z));
-  }
-}
-
-// Read a cif and put main infos in a map
-void ReadCif(char *path, map<string, vector<string> > &structure_dict) {
-  ifstream MyFile(path);
-  string myText;
+// Put it in a private / public class system
+map<string, vector<string> >  ReadFF(string forcefield_path) {
+  map<string, vector<string> > forcefield_dict;
   vector<string> L;
-  vector<int> cell_index;
-  vector<int> loop_index;
-  int i =0;
+  // cout << forcefield_path << endl;
+  ifstream MyFile(forcefield_path);
+  if (!MyFile) {
+      cerr << "Couldn't open forcefield file.\n";
+  }
+  string myText;
   while (getline (MyFile, myText)) {
-    if (myText.find("_cell") != string::npos) {
-      cell_index.push_back(i);
-    }
-    if (myText.find("loop_") != string::npos) {
-      loop_index.push_back(i);
-    }
-    // Save lines into a string vector
     L.push_back(myText);
-    i++;
   }
-  loop_index.push_back(i);
-  MyFile.close();
+  vector<string> forcefieldDefInfo(L.begin() + 7, L.end() - 2);
+  // PrintStringVector(forcefieldDefInfo);
+  vector <string> columns_values = SplitString(L[6].substr(2), ", ");
+  // PrintStringVector(columns_values);
 
-  // cell info read in the cif file
-  vector<string> cellCifInfo;
-  for (size_t i = 0; i < cell_index.size(); ++i ) {
-    cellCifInfo.push_back(L[cell_index[i]]);
-  }
-
-  double a, b, c;
-  double alpha, beta, gamma;
-  // split the lines and get values for a,b,c, alpha, beta, gamma
-  for (size_t i = 0; i < cellCifInfo.size(); ++i ) {
-    // cout << cellCifInfo[i] << endl;
-    AssignValue("_cell_length_a", cellCifInfo[i], a);
-    AssignValue("_cell_length_b", cellCifInfo[i], b);
-    AssignValue("_cell_length_c", cellCifInfo[i], c);
-    AssignValue("_cell_angle_alpha", cellCifInfo[i], alpha);
-    AssignValue("_cell_angle_beta", cellCifInfo[i], beta);
-    AssignValue("_cell_angle_gamma", cellCifInfo[i], gamma);
-  }
-  // Extract unitcell vector and angles to build conversion matrix (fract to cart)
-  vector< vector<double> > frac_to_cart;
-  init_2Dvector(frac_to_cart,3,3);
-  CreateFracToCartMatrix(a, b, c, alpha, beta, gamma, frac_to_cart);
-  vector< vector<double> > cart_to_frac;
-  init_2Dvector(cart_to_frac,3,3);
-  CreateCartToFracMatrix(a, b, c, alpha, beta, gamma, cart_to_frac);
-  cout << "Fractional to cartesian matrix" << endl;
-  Print2DVector(frac_to_cart);
-  // Print2DVector(cart_to_frac);
-  // vector< vector<double> > In;
-  // init_2Dvector(In,3,3);
-  // MatMul3x3(frac_to_cart, cart_to_frac, In);
-  // Print2DVector(In);
-
-  // Atom site loop
-  // identify the right loop using index
-  int begin_atom, end_atom;
-  for (size_t k = 0; k < loop_index.size()-1; ++k) {
-    if (L[loop_index[k]+1].find("_atom") != string::npos) {
-      begin_atom = loop_index[k];
-      end_atom = loop_index[k+1];
-    }
-  }
-  // extract using the index
-  vector<string> atomCifInfo;
-  atomCifInfo = vector<string>(L.begin()+begin_atom+1,L.begin()+end_atom);
-  // TODO check that _atom_site_fract_x is in the columns
-  vector<string> columns_values;
-  int first_indexes = 0;
-  while (atomCifInfo[first_indexes].find("_atom") != string::npos) {
-    string col_name = strip(atomCifInfo[first_indexes]);
-    columns_values.push_back(col_name);
-    structure_dict[col_name] = {};
-    first_indexes++;
-  }
-  // loop over the Information about atoms contained in the cif
-  for (size_t i = first_indexes; i < atomCifInfo.size(); ++i ) {
-    vector<string> split_row_temp;
-    SplitString(atomCifInfo[i], split_row_temp);
+  for (size_t i = 0; i < forcefieldDefInfo.size(); ++i ) {
+    vector<string> split_row_temp = SplitString(ReplaceString(forcefieldDefInfo[i],"\t"," "), " ");
     int k = 0;
     for (size_t j = 0; j < columns_values.size(); ++j ) {
-      structure_dict[columns_values[j]].push_back(split_row_temp[k]);
+      forcefield_dict[columns_values[j]].push_back(split_row_temp[k]);
       k++;
     }
   }
-  // Calculate cartesian coordinates
-  CreateCartCoord(frac_to_cart, structure_dict);
-  
-  // PrintStringVector(structure_dict["_atom_site_type_symbol"]);
-  // PrintStringVector(structure_dict["_atom_site_fract_x"]);
-  // PrintStringVector(structure_dict["_atom_site_fract_y"]);
-  // PrintStringVector(structure_dict["_atom_site_fract_z"]);
-  // PrintStringVector(structure_dict["_atom_site_charge"]);
-  // PrintStringVector(structure_dict["_atom_site_cart_x"]);
-  // PrintStringVector(structure_dict["_atom_site_cart_y"]);
-  // PrintStringVector(structure_dict["_atom_site_cart_z"]);
-  // TODO if atom_site_type_symbol does not exist...
-  // TODO check that the main columns used are here and ways to replace them
+  // PrintStringVector(forcefield_dict["sigma"]);
+  return forcefield_dict;
+  // print into a json
+  // print head(n)
 }
 
-void Distance_PBC(vector<double> X,vector<double> Y,vector<double> Z, double a, double b, double c, double alpha, double beta, double gamme) {
-
+vector<string> get_epsilon_sigma(string element, map<string, vector<string> > forcefield_dict) {
+  vector<string> epsilon_sigma = {};
+  int i=0; 
+  // add "_" for framework atoms
+  while (i<forcefield_dict["atom type"].size() && forcefield_dict["atom type"][i]!=element)
+    i++;
+  epsilon_sigma.push_back(strip("\t",forcefield_dict["epsilon"][i]));
+  epsilon_sigma.push_back(strip("\t",forcefield_dict["sigma"][i]));
+  return epsilon_sigma;
 }
 
-int main() {
-  const double R = 8.31446261815324e-3;
-  float T; string cell_size;
-  cout << "Hello!\n";
-  cout << "Temperature:\n";
-  // cin >> T;
-  T = 298.0;
-  cout << T << " K\n";
-  cout << R*T << " kJ/mol\n";
-  cout << "Cell Size:\n";
-  // cin >> cell_size;
-  cell_size = "5 3 2";
-  vector<string> cell_size_vector;
-  SplitString(cell_size, cell_size_vector);
-  PrintStringVector(cell_size_vector);
-  map<string, vector<string> > structure_dict;
-  ReadCif((char *)"KAXQIL_clean.cif", structure_dict);
-  // PrintStringVector(structure_dict["_atom_site_cart_x"]);
-  return 0;
+double LJEnergy_shifted(gemmi::Vec3 ads_position, vector<tuple<double, double, gemmi::Position> > neighbors, double cutoff) {
+  double Energy = 0;
+  for(auto neigh: neighbors) {
+    gemmi::Position pos_neigh = get<2>(neigh);
+    double distance = ads_position.dist(pos_neigh);
+    if (distance<cutoff) {
+      double epsilon = get<0>(neigh);
+      double sigma = get<1>(neigh);
+      Energy += 4 * epsilon * ( pow(sigma / distance,12) - pow(sigma / cutoff,12) - pow(sigma / distance,6) + pow(sigma / cutoff,6) );
+    }
+  }
+  return R * Energy;
+}
+
+// Extract neighbor
+
+int main(int argc, char* argv[])
+{
+  auto t_start = std::chrono::high_resolution_clock::now();
+  // Try catch error (when file format wrong)
+  auto structure_file = argv[1];
+  string forcefield_path = argv[2];
+  double temperature = stod(argv[3]);
+  double cutoff = stod(argv[4]);
+  int num_steps = stoi(argv[5]);
+  string element_ads = argv[6];
+
+  auto block = gemmi::cif::read_file(structure_file).sole_block();
+  gemmi::SmallStructure structure = gemmi::make_small_structure_from_block(block);
+
+  map<string, vector<string> > forcefield_dict = ReadFF(forcefield_path);
+
+  // cout << structure.spacegroup_hm << endl;
+  // cout << "Number of atoms: " << structure.sites.size() << endl;
+  // cout << "a: " << structure.cell.a << endl;
+  // cout << "b: " << structure.cell.b << endl;
+  // cout << "c: " << structure.cell.c << endl;
+  // cout << "alpha: " << structure.cell.alpha << endl;
+  // cout << "beta: " << structure.cell.beta << endl;
+  // cout << "gamma: " << structure.cell.gamma << endl;
+
+  vector <string> epsilon_sigma_temp = get_epsilon_sigma(element_ads, forcefield_dict);
+  double epsilon_ads = stod(epsilon_sigma_temp[0]);
+  double sigma_ads = stod(epsilon_sigma_temp[1]);
+
+  // // loop to create a map of potential neighbors
+  int n_max = (int)floor(cutoff/structure.cell.a)+1;
+  int m_max = (int)floor(cutoff/structure.cell.b)+1;
+  int l_max = (int)floor(cutoff/structure.cell.c)+1;
+
+  // cout << n_max << " " << m_max << " " << l_max << endl;
+
+  vector<tuple<double, double, gemmi::Position> > neighbors;
+  for (auto site: structure.sites) {
+    string element_host = site.type_symbol;  
+    vector <string> epsilon_sigma_temp = get_epsilon_sigma(element_host + "_", forcefield_dict);
+    // Lorentz-Berthelot
+    double epsilon = sqrt(stod(epsilon_sigma_temp[0])*epsilon_ads);
+    double sigma = (stod(epsilon_sigma_temp[1])+sigma_ads)/2;
+    for (int n = -n_max; (n<n_max+1); ++n){
+      for (int m = -m_max; (m<m_max+1); ++m) {
+        for (int l = -l_max; (l<l_max+1); ++l) {
+          gemmi::Fractional coord = site.fract;
+          coord.x = coord.x + n;
+          coord.y = coord.y + m;
+          coord.z = coord.z + l;
+          gemmi::Position pos = gemmi::Position(structure.cell.orthogonalize(coord));
+          neighbors.push_back(make_tuple(epsilon, sigma, pos));
+        }
+      }
+    }
+  }// can be optimized by putting conditions on the positions (if distance from closest <cutoff)
+  // cout << neighbors.size() << endl;
+  // loop over the sites to calculate LJ_energies
+  double boltzmann_energy_lj = 0;
+  double sum_exp_energy = 0;
+  for (auto site: structure.sites) {
+    string element_host = site.type_symbol;
+    vector <string> epsilon_sigma_temp = get_epsilon_sigma(element_host + "_", forcefield_dict);
+    double sigma_host = stod(epsilon_sigma_temp[1]);
+    double radius = pow(2,1/6) * (sigma_ads+sigma_host)/2;
+
+    gemmi::Vec3 Vsite = gemmi::Vec3(structure.cell.orthogonalize(site.fract));
+
+    vector<double> list_energy_lj;
+    for (int i = 0; i < num_steps; i++) {
+      gemmi::Vec3 V = randomSphereVector();
+      V *= radius;
+      double energy_lj = LJEnergy_shifted(V+Vsite, neighbors, cutoff);
+      boltzmann_energy_lj += exp(-energy_lj/(R*temperature)) * energy_lj;
+      sum_exp_energy += exp(-energy_lj/(R*temperature));
+      // cout << energy_lj << endl;
+    }
+  }
+  auto t_end = chrono::high_resolution_clock::now();
+  double elapsed_time_ms = chrono::duration<double, milli>(t_end-t_start).count();
+  cout << structure_file << "," << boltzmann_energy_lj/sum_exp_energy - R*temperature << "," << elapsed_time_ms/1000 << endl;
 }
