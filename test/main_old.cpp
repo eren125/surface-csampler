@@ -7,9 +7,22 @@
 #include <gemmi/smcif.hpp>
 #include <gemmi/unitcell.hpp>
 
+// #define PI 3.1415926535897932
 #define R 8.31446261815324e-3 // kJ/K/mol
 
 using namespace std;
+
+struct Properties {
+  double area;
+  double energy;
+};
+
+double molecular_mass(vector<gemmi::SmallStructure::Site> const &sites) {
+  double mass = 0;
+  for (auto site: sites)
+    mass += site.element.weight() * site.occ;
+  return mass;
+}
 
 gemmi::Vec3 randomSphereVector() {
   unsigned seed = chrono::system_clock::now().time_since_epoch().count();
@@ -128,8 +141,6 @@ double LJEnergy_shifted(gemmi::Vec3 ads_position, vector<tuple<double, double, g
   return R * Energy;
 }
 
-// Extract neighbor
-
 int main(int argc, char* argv[])
 {
   auto t_start = std::chrono::high_resolution_clock::now();
@@ -167,7 +178,7 @@ int main(int argc, char* argv[])
   // cout << n_max << " " << m_max << " " << l_max << endl;
 
   vector<tuple<double, double, gemmi::Position> > neighbors;
-  for (auto site: structure.sites) {
+  for (auto site: structure.sites) {  
     string element_host = site.type_symbol;  
     vector <string> epsilon_sigma_temp = get_epsilon_sigma(element_host + "_", forcefield_dict);
     // Lorentz-Berthelot

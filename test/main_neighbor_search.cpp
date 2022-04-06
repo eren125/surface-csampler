@@ -93,6 +93,7 @@ vector<string> SplitString(string s, string sep){
 map<string, vector<string> >  ReadFF(string forcefield_path) {
   map<string, vector<string> > forcefield_dict;
   vector<string> L;
+  // cout << forcefield_path << endl;
   ifstream MyFile(forcefield_path);
   if (!MyFile) {
       cerr << "Couldn't open forcefield file.\n";
@@ -101,16 +102,16 @@ map<string, vector<string> >  ReadFF(string forcefield_path) {
   while (getline (MyFile, myText)) {
     L.push_back(myText);
   }
-  vector <string> columns_values = SplitString(L[6].substr(2), ", ");
   vector<string> forcefieldDefInfo(L.begin() + 7, L.end() - 2);
-
-  for (size_t j = 1; j < columns_values.size(); ++j ) {
-    forcefield_dict[columns_values[0]].push_back(columns_values[j]);
-  }
+  // PrintStringVector(forcefieldDefInfo);
+  vector <string> columns_values = SplitString(L[6].substr(2), ", ");
+  // PrintStringVector(columns_values);
   for (size_t i = 0; i < forcefieldDefInfo.size(); ++i ) {
     vector<string> split_row_temp = SplitString(ReplaceString(forcefieldDefInfo[i],"\t"," "), " ");
-    for (size_t j = 1; j < split_row_temp.size(); ++j ) {
-      forcefield_dict[split_row_temp[0]].push_back(split_row_temp[j]);
+    int k = 0;
+    for (size_t j = 0; j < columns_values.size(); ++j ) {
+      forcefield_dict[columns_values[j]].push_back(split_row_temp[k]);
+      k++;
     }
   }
   return forcefield_dict;
@@ -118,26 +119,43 @@ map<string, vector<string> >  ReadFF(string forcefield_path) {
 
 vector<string> get_epsilon_sigma(string element, map<string, vector<string> > forcefield_dict) {
   vector<string> epsilon_sigma = {};
-  try {
-    vector<string> value = forcefield_dict.at(element);
-    epsilon_sigma.push_back(value[1]);
-    epsilon_sigma.push_back(value[2]);
-  }
-  catch (const std::out_of_range&) {
-    cout << "In get_epsilon_sigma, Key \"" << element.c_str() << "\" not found" << endl;
-  }
+  int i=0; 
+  // add "_" for framework atoms
+  while (i<forcefield_dict["atom type"].size() && forcefield_dict["atom type"][i]!=element)
+    i++;
+  epsilon_sigma.push_back(strip("\t",forcefield_dict["epsilon"][i]));
+  epsilon_sigma.push_back(strip("\t",forcefield_dict["sigma"][i]));
   return epsilon_sigma;
 }
 
-double LJEnergy_shifted(gemmi::Vec3 ads_position, vector<tuple<double, double, gemmi::Position> > neighbors, double cutoff_sq) {
+double LJEnergy_shifted(gemmi::Vec3 ads_position, double epsilon_ads, double sigma_ads, map<string, vector<string> > forcefield_dict, vector<gemmi::NeighborSearch::Mark*> neighbor_marks, double cutoff) {
+  double Energy = 0;
+  for(auto mark: neighbor_marks) {
+    gemmi::Position pos_neigh = mark->pos();
+    double distance = ads_position.dist(pos_neigh);
+    if (distance<cutoff) {
+      string element_host = mark->element.name();
+      vector <string> epsilon_sigma_temp = get_epsilon_sigma(element_host + "_", forcefield_dict);
+      // Lorentz-Berthelot
+      double epsilon = sqrt(stod(epsilon_sigma_temp[0])*epsilon_ads);
+      double sigma = (stod(epsilon_sigma_temp[1])+sigma_ads)/2;
+      Energy += 4 * epsilon * ( pow(sigma / distance,12) - pow(sigma / cutoff,12) - pow(sigma / distance,6) + pow(sigma / cutoff,6) );
+    }
+  }
+  return R * Energy;
+}
+
+// TODO use dist_sq
+// TODO change type for
+double LJEnergy_shifted_old(gemmi::Vec3 ads_position, vector<tuple<double, double, gemmi::Position> > neighbors, double cutoff) {
   double Energy = 0;
   for(auto neigh: neighbors) {
     gemmi::Position pos_neigh = get<2>(neigh);
-    double distance_sq = ads_position.dist_sq(pos_neigh);
-    if (distance_sq<cutoff_sq) {
+    double distance = ads_position.dist(pos_neigh);
+    if (distance<cutoff) {
       double epsilon = get<0>(neigh);
-      double sigma_sq = pow(get<1>(neigh),2);
-      Energy += 4 * epsilon * ( pow(sigma_sq/distance_sq,6) - pow(sigma_sq/cutoff_sq,6) - pow(sigma_sq/distance_sq,3) + pow(sigma_sq/cutoff_sq,3) );
+      double sigma = get<1>(neigh);
+      Energy += 4 * epsilon * ( pow(sigma / distance,12) - pow(sigma / cutoff,12) - pow(sigma / distance,6) + pow(sigma / cutoff,6) );
     }
   }
   return R * Energy;
@@ -151,7 +169,6 @@ int main(int argc, char* argv[])
   string forcefield_path = argv[2];
   double temperature = stod(argv[3]);
   double cutoff = stod(argv[4]);
-  double cutoff_sq = pow(cutoff,2);
   int num_steps = stoi(argv[5]);
   string element_ads = argv[6];
 
@@ -170,23 +187,35 @@ int main(int argc, char* argv[])
       break;
     }
 
-  // cout << "Number of unique atoms: " << structure.sites.size() << endl;
-  // cout << "Number of all unitcell atoms: " << structure.get_all_unit_cell_sites().size() << endl;
+  // cout << "check: " << structure.cell.is_crystal() << endl;
+
+  // cout << "Spacegroup number: " << sg->number << endl;
+  // cout << "Space Group HM: " << structure.spacegroup_hm << endl;
+  // cout << "Spacegroup hm: " << sg->hm << endl;
+
+  // cout << "Number of images: " << structure.cell.images.size() << endl;
+  cout << "Number of unique atoms: " << structure.sites.size() << endl;
+  cout << "Number of all unitcell atoms: " << structure.get_all_unit_cell_sites().size() << endl;
 
   vector <string> epsilon_sigma_temp = get_epsilon_sigma(element_ads, forcefield_dict);
   double epsilon_ads = stod(epsilon_sigma_temp[0]);
   double sigma_ads = stod(epsilon_sigma_temp[1]);
 
-  // // Defines the size of the supracell
-  int n_max = (int)floor(1.3*cutoff/structure.cell.a)+1;
-  int m_max = (int)floor(1.3*cutoff/structure.cell.b)+1;
-  int l_max = (int)floor(1.3*cutoff/structure.cell.c)+1;
-  // cout << n_max << " " << m_max << " " << l_max << endl;
+  // // loop to create a map of potential neighbors
+  int n_max = (int)floor(1.5*cutoff/structure.cell.a)+1;
+  int m_max = (int)floor(1.5*cutoff/structure.cell.b)+1;
+  int l_max = (int)floor(1.5*cutoff/structure.cell.c)+1;
 
-  // Creates a list of sites within the cutoff
+  cout << n_max << " " << m_max << " " << l_max << endl;
+
+  // TODO Trouver une meilleure façon de trouver les autres sites
+  gemmi::SmallStructure suprastructure;
+  suprastructure.cell = structure.cell;
+  suprastructure.spacegroup_hm = structure.spacegroup_hm;
+  suprastructure.wavelength = structure.wavelength;
   vector<tuple<double, double, gemmi::Position> > supracell_sites;
-  for (auto site: structure.get_all_unit_cell_sites()) {
-    string element_host = site.type_symbol;  
+  for (auto site: structure.sites) {
+    string element_host = site.type_symbol;
     vector <string> epsilon_sigma_temp = get_epsilon_sigma(element_host + "_", forcefield_dict);
     // Lorentz-Berthelot
     double epsilon = sqrt(stod(epsilon_sigma_temp[0])*epsilon_ads);
@@ -195,44 +224,61 @@ int main(int argc, char* argv[])
       for (int m = -m_max; (m<m_max+1); ++m) {
         for (int l = -l_max; (l<l_max+1); ++l) {
           gemmi::Fractional coord = site.fract;
-          coord.x = coord.x + n;
-          coord.y = coord.y + m;
-          coord.z = coord.z + l;
-          gemmi::Position pos = gemmi::Position(structure.cell.orthogonalize(coord));
+          gemmi::SmallStructure::Site site;
+          site.fract.x = coord.x + n;
+          site.fract.y = coord.y + m;
+          site.fract.z = coord.z + l;
+          site.type_symbol = element_host;
+          const char *element_name = element_host.c_str();
+          site.element = gemmi::find_element(element_name);
+          suprastructure.sites.push_back(site);
+          gemmi::Position pos = gemmi::Position(structure.cell.orthogonalize(site.fract));
           supracell_sites.push_back(make_tuple(epsilon, sigma, pos));
         }
       }
     }
-  }
+  }// can be optimized by putting conditions on the positions (if distance from closest <cutoff)
+  cout << suprastructure.sites.size() << endl;
+  cout << suprastructure.get_all_unit_cell_sites().size() << endl;
+
+  // TODO Don't take atoms outside
+  auto NS = gemmi::NeighborSearch(structure, 1.5*cutoff);
+  NS.populate(false);
+
   // TODO Tester plusieurs techniques
   vector<gemmi::Vec3> sphere_distr_vector = generateSphereRandom(num_steps);
 
-  double mass = 0;
   double boltzmann_energy_lj = 0;
   double sum_exp_energy = 0;
   for (auto site: structure.sites) {
     // Get LJ parameters
     string element_host = site.type_symbol;
-    gemmi::Element el(element_host.c_str());
-    mass += el.weight();
     vector <string> epsilon_sigma_temp = get_epsilon_sigma(element_host + "_", forcefield_dict);
     double sigma_host = stod(epsilon_sigma_temp[1]);
     double radius = pow(2,1/6) * (sigma_ads+sigma_host)/2;
     // Get site coordinates
     gemmi::Vec3 Vsite = gemmi::Vec3(structure.cell.orthogonalize(site.fract));
+    // TODO Determine neighbors
+    auto neighbor_marks = NS.find_atoms(gemmi::Position(Vsite), '\0', cutoff + radius);
+    // cout << neighbor_marks.size() << endl;
+    // for (auto mark: neighbor_marks) {
+    //   cout << mark->x << " " << mark->y << " "  << mark->z << " "  << endl;
+    // }
 
     vector<double> list_energy_lj;
     for (gemmi::Vec3 V: sphere_distr_vector) {
       V *= radius;
-      double energy_lj = LJEnergy_shifted(V+Vsite,supracell_sites, cutoff_sq);
+      // TODO change how LJEnergy calculation works (use of distances)
+      double energy_lj = LJEnergy_shifted(V+Vsite, epsilon_ads, sigma_ads, forcefield_dict, neighbor_marks, cutoff);
+      // double energy_lj = LJEnergy_shifted_old(V+Vsite,supracell_sites, cutoff);
       boltzmann_energy_lj += exp(-energy_lj/(R*temperature)) * energy_lj;
       sum_exp_energy += exp(-energy_lj/(R*temperature));
+      // TODO add Henry coefficient
     }
   }
-  double Na = 6.02214076e23;
-  auto Framework_density = (structure.cell.images.size()+1)*1e-3*mass/(Na*structure.cell.volume*1e-30); // kg/m3
   auto t_end = chrono::high_resolution_clock::now();
   double elapsed_time_ms = chrono::duration<double, milli>(t_end-t_start).count();
-  // Structure name, Enthalpy (kJ/mol), Henry coeff (mol/kg/Pa), Time (s)
-  cout << structure_file << "," << boltzmann_energy_lj/sum_exp_energy - R*temperature << "," << 1e-3*sum_exp_energy/(R*temperature)/(structure.sites.size()*num_steps)/Framework_density << "," << elapsed_time_ms/1000 << endl;
+  cout << structure_file << "," << boltzmann_energy_lj/sum_exp_energy - R*temperature << "," << elapsed_time_ms/1000 << endl;
 }
+// Les images générées par symmétrie ne marche pas (trouver un autre moyen)
+// get_epsilon_sigma trop lent
