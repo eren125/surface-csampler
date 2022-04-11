@@ -21,7 +21,7 @@ df.dropna(inplace=True)
 df_merge = pd.merge(df_widom,df, on="Structures", how="left")
 df_plot = df_merge[~(df_merge['DISORDER']=='DISORDER')]
 
-df_plot = df_plot[df_plot['H_Xe_0_widom']<0]
+# df_plot = df_plot[df_plot['H_Xe_0_widom']<0]
 
 # %%
 def split_deviation(x):

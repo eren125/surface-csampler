@@ -1,0 +1,32 @@
+data_PUDXES01F4_132
+# Symmetrized structure with precision = 1e-10
+_cell_length_a                  24.869
+_cell_length_b                  24.869
+_cell_length_c                  24.869
+_cell_angle_alpha               90
+_cell_angle_beta                90
+_cell_angle_gamma               90
+_symmetry_space_group_name_H-M  'F4_132'
+_symmetry_Int_Tables_number     210
+
+loop_
+_atom_site_label
+_atom_site_type_symbol
+_atom_site_occupancy
+_atom_site_fract_x
+_atom_site_fract_y
+_atom_site_fract_z
+N N 1.0 0.9635000 0.4548600 0.7779200
+C C 1.0 0.8704000 0.4463000 0.8889400
+H H 1.0 0.8483000 0.4749000 0.8794000
+C C 1.0 0.9152900 0.4344000 0.8580900
+C C 1.0 0.9275000 0.4676000 0.8108000
+H H 1.0 0.9080000 0.4990000 0.8050000
+C C 1.0 0.9721000 0.4893000 0.7310700
+H H 1.0 0.4468000 0.0195000 0.7325000
+C C 1.0 0.9616000 0.4567000 0.6799000
+H H 1.0 0.9246000 0.4443000 0.6798000
+H H 1.0 0.9849000 0.4255000 0.6794000
+C C 1.0 0.9720000 0.4912000 0.6296000
+H H 1.0 0.9647000 0.4704000 0.5975000
+H H 1.0 0.4484000 0.0223000 0.6296000

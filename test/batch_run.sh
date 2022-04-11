@@ -3,7 +3,7 @@ if [ -f results_${1}.csv ]; then
   rm results_${1}.csv
 fi
 touch results_${1}.csv
-echo 'structure_file,enthalpy,time' >> results_${1}.csv
+echo 'structure_file,enthalpy,henry,time' >> results_${1}.csv
 STRUC_DIR=out
 for file in $(ls $STRUC_DIR)
 do

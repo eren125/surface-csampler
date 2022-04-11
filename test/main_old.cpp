@@ -11,6 +11,7 @@
 #define R 8.31446261815324e-3 // kJ/K/mol
 
 using namespace std;
+namespace cif = gemmi::cif;
 
 struct Properties {
   double area;
@@ -152,8 +153,18 @@ int main(int argc, char* argv[])
   int num_steps = stoi(argv[5]);
   string element_ads = argv[6];
 
-  auto block = gemmi::cif::read_file(structure_file).sole_block();
+  auto doc = cif::read_file(structure_file);
+  auto block = doc.sole_block();
   gemmi::SmallStructure structure = gemmi::make_small_structure_from_block(block);
+  // Setup spacegroup using number and reset the images properly (don't use hm notations)
+  for (const char* tag : {"_space_group_IT_number",
+                          "_symmetry_Int_Tables_number"})
+    if (const std::string* val = block.find_value(tag)) {
+      int spacegroup_number = (int) cif::as_number(*val);
+      const gemmi::SpaceGroup* sg = gemmi::find_spacegroup_by_number(spacegroup_number);
+      structure.cell.set_cell_images_from_spacegroup(sg);
+      break;
+    }
 
   map<string, vector<string> > forcefield_dict = ReadFF(forcefield_path);
 
@@ -178,7 +189,7 @@ int main(int argc, char* argv[])
   // cout << n_max << " " << m_max << " " << l_max << endl;
 
   vector<tuple<double, double, gemmi::Position> > neighbors;
-  for (auto site: structure.sites) {  
+  for (auto site: structure.get_all_unit_cell_sites()) {  
     string element_host = site.type_symbol;  
     vector <string> epsilon_sigma_temp = get_epsilon_sigma(element_host + "_", forcefield_dict);
     // Lorentz-Berthelot
@@ -199,10 +210,13 @@ int main(int argc, char* argv[])
   }// can be optimized by putting conditions on the positions (if distance from closest <cutoff)
   // cout << neighbors.size() << endl;
   // loop over the sites to calculate LJ_energies
+  double mass = 0;
   double boltzmann_energy_lj = 0;
   double sum_exp_energy = 0;
   for (auto site: structure.sites) {
     string element_host = site.type_symbol;
+    gemmi::Element el(element_host.c_str());
+    mass += el.weight();
     vector <string> epsilon_sigma_temp = get_epsilon_sigma(element_host + "_", forcefield_dict);
     double sigma_host = stod(epsilon_sigma_temp[1]);
     double radius = pow(2,1/6) * (sigma_ads+sigma_host)/2;
@@ -219,7 +233,10 @@ int main(int argc, char* argv[])
       // cout << energy_lj << endl;
     }
   }
+  double Na = 6.02214076e23;
+  auto Framework_density = (structure.cell.images.size()+1)*1e-3*mass/(Na*structure.cell.volume*1e-30); // kg/m3
   auto t_end = chrono::high_resolution_clock::now();
   double elapsed_time_ms = chrono::duration<double, milli>(t_end-t_start).count();
-  cout << structure_file << "," << boltzmann_energy_lj/sum_exp_energy - R*temperature << "," << elapsed_time_ms/1000 << endl;
+  // Structure name, Enthalpy (kJ/mol), Henry coeff (mol/kg/Pa), Time (s)
+  cout << structure_file << "," << boltzmann_energy_lj/sum_exp_energy - R*temperature << "," << 1e-3*sum_exp_energy/(R*temperature)/(structure.sites.size()*num_steps)/Framework_density << "," << elapsed_time_ms/1000 << endl;
 }

@@ -1,5 +1,8 @@
 # data
 test/out
+test/coremof_sym
+test/trash
+include/thomson
 
 # build
 build
