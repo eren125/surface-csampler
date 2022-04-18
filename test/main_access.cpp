@@ -14,8 +14,7 @@
 using namespace std;
 namespace cif = gemmi::cif;
 
-int main(int argc, char* argv[])
-{
+int main(int argc, char* argv[]) {
   // Set up Input Variables
   chrono::high_resolution_clock::time_point t_start = chrono::high_resolution_clock::now();
   auto structure_file = argv[1];
@@ -84,9 +83,21 @@ int main(int argc, char* argv[])
   double a_y = structure.cell.orth.mat[1][0]; double b_y = structure.cell.orth.mat[1][1]; double c_y = structure.cell.orth.mat[1][2];
   double a_z = structure.cell.orth.mat[2][0]; double b_z = structure.cell.orth.mat[2][1]; double c_z = structure.cell.orth.mat[2][2]; 
   // Minimal box setting for a triclinic cell to contain a sphere of radius `large_cutoff`
-  int n_max = abs(int(large_cutoff * sqrt((b_y*c_x-b_x*c_y)*(b_y*c_x-b_x*c_y) + (b_z*c_x-b_x*c_z)*(b_z*c_x-b_x*c_z) + (b_z*c_y-b_y*c_z)*(b_z*c_y-b_y*c_z)) / (a_z*b_y*c_x - a_y*b_z*c_x - a_z*b_x*c_y + a_x*b_z*c_y + a_y*b_x*c_z - a_x*b_y*c_z))) + 1;
-  int m_max = abs(int(large_cutoff * sqrt((c_y*a_x-c_x*a_y)*(c_y*a_x-c_x*a_y) + (c_z*a_x-c_x*a_z)*(c_z*a_x-c_x*a_z) + (c_z*a_y-c_y*a_z)*(c_z*a_y-c_y*a_z)) / (b_z*c_y*a_x - b_y*c_z*a_x - b_z*c_x*a_y + b_x*c_z*a_y + b_y*c_x*a_z - b_x*c_y*a_z))) + 1;
-  int l_max = abs(int(large_cutoff * sqrt((a_y*b_x-a_x*b_y)*(a_y*b_x-a_x*b_y) + (a_z*b_x-a_x*b_z)*(a_z*b_x-a_x*b_z) + (a_z*b_y-a_y*b_z)*(a_z*b_y-a_y*b_z)) / (c_z*a_y*b_x - c_y*a_z*b_x - c_z*a_x*b_y + c_x*a_z*b_y + c_y*a_x*b_z - c_x*a_y*b_z))) + 1;
+  int n_max = abs(int(large_cutoff * sqrt((b_y*c_x-b_x*c_y)*(b_y*c_x-b_x*c_y) 
+                      + (b_z*c_x-b_x*c_z)*(b_z*c_x-b_x*c_z) 
+                      + (b_z*c_y-b_y*c_z)*(b_z*c_y-b_y*c_z)) 
+                      / (a_z*b_y*c_x - a_y*b_z*c_x - a_z*b_x*c_y 
+                      + a_x*b_z*c_y + a_y*b_x*c_z - a_x*b_y*c_z))) + 1;
+  int m_max = abs(int(large_cutoff * sqrt((c_y*a_x-c_x*a_y)*(c_y*a_x-c_x*a_y) 
+                      + (c_z*a_x-c_x*a_z)*(c_z*a_x-c_x*a_z) 
+                      + (c_z*a_y-c_y*a_z)*(c_z*a_y-c_y*a_z)) 
+                      / (b_z*c_y*a_x - b_y*c_z*a_x - b_z*c_x*a_y 
+                      + b_x*c_z*a_y + b_y*c_x*a_z - b_x*c_y*a_z))) + 1;
+  int l_max = abs(int(large_cutoff * sqrt((a_y*b_x-a_x*b_y)*(a_y*b_x-a_x*b_y) 
+                      + (a_z*b_x-a_x*b_z)*(a_z*b_x-a_x*b_z) 
+                      + (a_z*b_y-a_y*b_z)*(a_z*b_y-a_y*b_z)) 
+                      / (c_z*a_y*b_x - c_y*a_z*b_x - c_z*a_x*b_y 
+                      + c_x*a_z*b_y + c_y*a_x*b_z - c_x*a_y*b_z))) + 1;
 
   // Creates a list of sites within the cutoff
   vector<array<double,6>> supracell_sites;
@@ -124,7 +135,6 @@ int main(int argc, char* argv[])
     }
   }
 
-  // TODO Tester plusieurs techniques
   // vector<gemmi::Vec3> sphere_distr_vector = generateSphereNormalRandom(num_steps);
   // vector<gemmi::Vec3> sphere_distr_vector = generateSphereAngleRandom(num_steps);
   // vector<gemmi::Vec3> sphere_distr_vector = generateSphereCubeRandom(num_steps);
@@ -140,14 +150,17 @@ int main(int argc, char* argv[])
   double radius;
   double energy_lj;
   vector<array<double,6>> neighbor_sites;
+  int count_acc = 0;
+  double surface = 0;
 
   for ( gemmi::SmallStructure::Site site: unique_sites ) {
     // Get LJ parameters
     element_host_str = site.type_symbol;
     sigma_host = ff_params.get_sigma(element_host_str, false);
     radius = sqrt_2 * (sigma_guest+sigma_host);
+    surface += 4 * M_PI * radius * radius;
+
     gemmi::Element el(element_host_str.c_str());
-    
     mass += el.weight();
     gemmi::Vec3 Vsite = gemmi::Vec3(structure.cell.orthogonalize(site.fract));
     // Cell list pruning to have only the sites that are within (cutoff + radius) of the unique site
@@ -179,16 +192,22 @@ int main(int argc, char* argv[])
         }
       }
       energy_lj *= 4*R;
+      if ( energy_lj <= 0 ){
+        count_acc++;
+      }
       exp_energy = exp(-energy_lj/(R*temperature)); 
       sum_exp_energy += exp_energy;
       boltzmann_energy_lj += exp_energy*energy_lj;
     }
   }
-  double Framework_density = (structure.cell.images.size()+1)*1e-3*mass/(N_A*structure.cell.volume*1e-30); // kg/m3
-  double enthalpy_surface = boltzmann_energy_lj/sum_exp_energy - R*temperature;
-  double henry_surface = 1e-3*sum_exp_energy/(R*temperature)/(unique_sites.size()*num_steps)/Framework_density;
+  double sym_images = structure.cell.images.size()+1;
+  double Framework_density = sym_images * 1e-3 * mass/(N_A*structure.cell.volume*1e-30); // kg/m3
+  double enthalpy_surface = boltzmann_energy_lj/sum_exp_energy - R*temperature;  // kJ/mol
+  double henry_surface = 1e-3*sum_exp_energy/(R*temperature)/(unique_sites.size()*num_steps)/Framework_density;    // mol/kg/Pa
+  double area_accessible = 1e4 * sym_images * surface * count_acc / (num_steps * unique_sites.size() * structure.cell.volume); // m2/cm3
+
   chrono::high_resolution_clock::time_point t_end = chrono::high_resolution_clock::now();
   double elapsed_time_ms = chrono::duration<double, milli>(t_end-t_start).count();
-  // Structure name, Enthalpy (kJ/mol), Henry coeff (mol/kg/Pa), Time (s)
-  cout << structure_file << "," << enthalpy_surface << "," << henry_surface << "," << elapsed_time_ms*0.001 << endl;
+  // Structure name, Enthalpy (kJ/mol), Henry coeff (mol/kg/Pa), Accessible Surface (m2/cm3), Time (s)
+  cout << structure_file << "," << enthalpy_surface << "," << henry_surface << "," << area_accessible << "," << elapsed_time_ms*0.001 << endl;
 }
