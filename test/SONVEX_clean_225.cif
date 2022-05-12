@@ -1,0 +1,24 @@
+data_SONVEX_cleanFm-3m
+# Symmetrized structure with precision = 1e-10
+_cell_length_a                  26.33478
+_cell_length_b                  26.33478
+_cell_length_c                  26.33478
+_cell_angle_alpha               90
+_cell_angle_beta                90
+_cell_angle_gamma               90
+_symmetry_space_group_name_H-M  'Fm-3m'
+_symmetry_Int_Tables_number     225
+
+loop_
+_atom_site_label
+_atom_site_type_symbol
+_atom_site_occupancy
+_atom_site_fract_x
+_atom_site_fract_y
+_atom_site_fract_z
+Cu Cu 1.0 0.7149250 0.2149250 0.0000000
+H H 1.0 0.6195000 0.2723000 0.1195000
+C C 1.0 0.7028800 0.2971200 0.0691000
+C C 1.0 0.6773900 0.3226100 0.1127000
+C C 1.0 0.6340700 0.3010000 0.1340700
+O O 1.0 0.6831700 0.2568100 0.0527700

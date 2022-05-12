@@ -18,14 +18,12 @@ double invsqrtQuake( double number ) {
 vector<gemmi::Vec3> generateSphereNormalRandom(int num_steps) {
   vector<gemmi::Vec3> v;
   unsigned seed = chrono::system_clock::now().time_since_epoch().count();
-  default_random_engine generator_x (seed);
-  default_random_engine generator_y (seed+500);
-  default_random_engine generator_z (seed+1000);
+  default_random_engine generator (seed);
   normal_distribution<double> normal_distrib (0.0,1.0);
   gemmi::Vec3 coord = gemmi::Vec3(0,0,0);
   double norm_sq = 0;
   for (int i = 0; i < num_steps; i++) {
-    coord = gemmi::Vec3(normal_distrib(generator_x), normal_distrib(generator_y), normal_distrib(generator_z));
+    coord = gemmi::Vec3(normal_distrib(generator), normal_distrib(generator), normal_distrib(generator));
     norm_sq = coord.length_sq();
     v.push_back(coord*invsqrtQuake(norm_sq));
   }
@@ -88,8 +86,7 @@ vector<gemmi::Vec3> generateSphereSpirals(int num_steps) {
   double sin_phi;
   for (int i = 0; i < num_steps; i++) {
     theta += d_theta;
-    cos_theta = cos(theta);
-    sin_theta = sqrt(1 - cos_theta * cos_theta);
+    sincos(theta, &cos_theta, &sin_theta);
     cos_phi -= d_cos_phi;
     sin_phi = sqrt(1 - cos_phi * cos_phi);
     coord = gemmi::Vec3( sin_phi * cos_theta, sin_phi * sin_theta, cos_phi );
