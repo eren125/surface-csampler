@@ -47,8 +47,13 @@ int main(int argc, char* argv[]) {
   // Uniform distribution of points on a sphere
   // vector<gemmi::Vec3> sphere_distr_vector = generateSphereNormalRandom(num_steps);
   // vector<gemmi::Vec3> sphere_distr_vector = generateSphereAngleRandom(num_steps);
-  // vector<gemmi::Vec3> sphere_distr_vector = generateSphereCubeRandom(num_steps);
-  vector<gemmi::Vec3> sphere_distr_vector = generateSphereSpirals(num_steps);
+  vector<gemmi::Vec3> sphere_distr_vector = generateSphereCubeRandom(num_steps);
+  // vector<gemmi::Vec3> sphere_distr_vector = generateSphereSpirals(num_steps);
+  
+  // for (auto v: sphere_distr_vector) {
+  //   cout << "He " << v.x << " " << v.y << " " << v.z << endl;
+  // }
+  // exit(0);
 
   // Adsorption infos from forcefield dictionary
   pair<double,double> epsilon_sigma = ff_params.get_epsilon_sigma(element_guest_str, true);
@@ -73,6 +78,29 @@ int main(int argc, char* argv[]) {
   vector<gemmi::SmallStructure::Site> all_sites = structure.get_all_unit_cell_sites();
   int image_num = structure.cell.images.size();
 
+  int i = 0;
+
+  for (auto site: unique_sites) {
+    auto pos = gemmi::Position(structure.cell.orthogonalize(site.fract)); 
+    auto element_host_str = site.type_symbol;
+    cout << element_host_str << " " << pos.x << " " << pos.y << " " << pos.z << endl;
+  }
+  for (auto image: structure.cell.images) {
+    i++;
+    gemmi::Element element_im(i);
+    // auto pos = gemmi::Position(image.apply(gemmi::Fractional(1,0,0)));
+    // cout << element_im.name() << " " << pos.x << " " << pos.y << " " << pos.z << endl;
+    // pos = gemmi::Position(image.apply(gemmi::Fractional(0,1,0)));
+    // cout << element_im.name() << " " << pos.x << " " << pos.y << " " << pos.z << endl;
+    // pos = gemmi::Position(image.apply(gemmi::Fractional(0,0,1)));
+    // cout << element_im.name() << " " << pos.x << " " << pos.y << " " << pos.z << endl;
+    for (auto site: unique_sites) {
+      auto pos = gemmi::Position(structure.cell.orthogonalize(image.apply(site.fract))); 
+      auto element_host_str = site.type_symbol;
+      cout << element_host_str << " " << pos.x << " " << pos.y << " " << pos.z << endl;
+    }
+  }
+  exit(0);
   // Cell parameters
   double a = structure.cell.a; double b = structure.cell.b; double c = structure.cell.c; 
   double deg_rad = M_PI/180;
@@ -89,18 +117,22 @@ int main(int argc, char* argv[]) {
                       + (b_z*c_x-b_x*c_z)*(b_z*c_x-b_x*c_z) 
                       + (b_z*c_y-b_y*c_z)*(b_z*c_y-b_y*c_z)) 
                       / (a_z*b_y*c_x - a_y*b_z*c_x - a_z*b_x*c_y 
-                      + a_x*b_z*c_y + a_y*b_x*c_z - a_x*b_y*c_z))) + 1;
+                      +  a_x*b_z*c_y + a_y*b_x*c_z - a_x*b_y*c_z))) + 1;
   int m_max = abs(int(large_cutoff * sqrt((c_y*a_x-c_x*a_y)*(c_y*a_x-c_x*a_y) 
                       + (c_z*a_x-c_x*a_z)*(c_z*a_x-c_x*a_z) 
                       + (c_z*a_y-c_y*a_z)*(c_z*a_y-c_y*a_z)) 
                       / (b_z*c_y*a_x - b_y*c_z*a_x - b_z*c_x*a_y 
-                      + b_x*c_z*a_y + b_y*c_x*a_z - b_x*c_y*a_z))) + 1;
+                      +  b_x*c_z*a_y + b_y*c_x*a_z - b_x*c_y*a_z))) + 1;
   int l_max = abs(int(large_cutoff * sqrt((a_y*b_x-a_x*b_y)*(a_y*b_x-a_x*b_y) 
                       + (a_z*b_x-a_x*b_z)*(a_z*b_x-a_x*b_z) 
                       + (a_z*b_y-a_y*b_z)*(a_z*b_y-a_y*b_z)) 
                       / (c_z*a_y*b_x - c_y*a_z*b_x - c_z*a_x*b_y 
-                      + c_x*a_z*b_y + c_y*a_x*b_z - c_x*a_y*b_z))) + 1;
-
+                      +  c_x*a_z*b_y + c_y*a_x*b_z - c_x*a_y*b_z))) + 1;
+  n_max = 0; m_max =0; l_max=0;
+  // cout << large_cutoff << endl;
+  // cout << n_max << " " << m_max << " " << l_max << endl;
+  // cout << sqrt(a_x*a_x+a_y*a_y+a_z*a_z) << " " << sqrt(b_x*b_x+b_y*b_y+b_z*b_z) << " " << sqrt(c_x*c_x+c_y*c_y+c_z*c_z) << endl;
+  // exit(0);
   // Creates a list of sites within the cutoff
   vector<array<double,5>> supracell_sites;
   gemmi::Fractional coord_temp;
@@ -135,7 +167,7 @@ int main(int argc, char* argv[]) {
       }
     }
   }
-
+  //exit(0);
   double mass = 0;
   double boltzmann_energy_lj = 0;
 
@@ -183,8 +215,12 @@ int main(int argc, char* argv[]) {
       exp_energy = exp(-energy_lj/(R*temperature)); 
       sum_exp_energy += exp_energy;
       boltzmann_energy_lj += exp_energy*energy_lj;
+      if (energy_lj<-20) { 
+	cout << "Xe " << (Vsite+V).x << " " << (Vsite+V).y << " " << (Vsite+V).z << endl;
+      }
     }
   }
+  exit(0);
   double Framework_density = (image_num+1)*1e-3*mass/(N_A*structure.cell.volume*1e-30);      // kg/m3
   double enthalpy_surface = boltzmann_energy_lj/sum_exp_energy - R*temperature;                                 // kJ/mol
   double henry_surface = 1e-3*sum_exp_energy/(R*temperature)/(unique_sites.size()*num_steps)/Framework_density; // mol/kg/Pa

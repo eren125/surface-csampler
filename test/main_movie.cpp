@@ -183,13 +183,15 @@ int main(int argc, char* argv[]) {
       exp_energy = exp(-energy_lj/(R*temperature)); 
       sum_exp_energy += exp_energy;
       boltzmann_energy_lj += exp_energy*energy_lj;
+      cout << (V+Vsite).x << " " << (V+Vsite).y << " " << (V+Vsite).z << " " << energy_lj << endl;
     }
   }
+  // cout << sum_exp_energy << endl;
   double Framework_density = (image_num+1)*1e-3*mass/(N_A*structure.cell.volume*1e-30);      // kg/m3
   double enthalpy_surface = boltzmann_energy_lj/sum_exp_energy - R*temperature;                                 // kJ/mol
   double henry_surface = 1e-3*sum_exp_energy/(R*temperature)/(unique_sites.size()*num_steps)/Framework_density; // mol/kg/Pa
   chrono::high_resolution_clock::time_point t_end = chrono::high_resolution_clock::now();
   double elapsed_time_ms = chrono::duration<double, milli>(t_end-t_start).count();
   // Structure name, Enthalpy (kJ/mol), Henry coeff (mol/kg/Pa), Time (s)
-  cout << structure_file << "," << enthalpy_surface << "," << henry_surface << "," << elapsed_time_ms*0.001 << endl;
+  // cout << structure_file << "," << enthalpy_surface << "," << henry_surface << "," << elapsed_time_ms*0.001 << endl;
 }

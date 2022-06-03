@@ -180,7 +180,13 @@ int main(int argc, char* argv[]) {
         distance_sq = (V+Vsite).dist_sq(pos_neigh);
         sigma_sq = pos_epsilon_sigma[4];
         if (distance_sq < sigma_sq*access_coeff_sq) {
+          // epsilon = pos_epsilon_sigma[3];
+          // sigma_6 = pos_epsilon_sigma[5];
+          // inv_distance_6 = 1.0 / ( distance_sq * distance_sq * distance_sq );
+          // inv_distance_12 = inv_distance_6 * inv_distance_6;
+          // energy_lj = epsilon * sigma_6 * ( sigma_6 * (inv_distance_12 - inv_cutoff_12) - inv_distance_6 + inv_cutoff_6 );
           energy_lj = 1e10;
+          // count_acc -= 1;
           break;
         }
         else if (distance_sq < cutoff_sq) {
@@ -192,22 +198,23 @@ int main(int argc, char* argv[]) {
         }
       }
       energy_lj *= 4*R;
-      if ( energy_lj <= 0 ){
+      if ( energy_lj <= -R*temperature ){
         count_acc++;
       }
       exp_energy = exp(-energy_lj/(R*temperature)); 
       sum_exp_energy += exp_energy;
       boltzmann_energy_lj += exp_energy*energy_lj;
+      // count_acc++;
     }
   }
   double sym_images = structure.cell.images.size()+1;
   double Framework_density = sym_images * 1e-3 * mass/(N_A*structure.cell.volume*1e-30); // kg/m3
   double enthalpy_surface = boltzmann_energy_lj/sum_exp_energy - R*temperature;  // kJ/mol
   double henry_surface = 1e-3*sum_exp_energy/(R*temperature)/(unique_sites.size()*num_steps)/Framework_density;    // mol/kg/Pa
-  double area_accessible = 1e4 * sym_images * surface * count_acc / (num_steps * unique_sites.size() * structure.cell.volume); // m2/cm3
+  double area_accessible = 1e7 * sym_images * surface * count_acc / (num_steps * unique_sites.size() * structure.cell.volume * Framework_density); // m2/g
 
   chrono::high_resolution_clock::time_point t_end = chrono::high_resolution_clock::now();
   double elapsed_time_ms = chrono::duration<double, milli>(t_end-t_start).count();
-  // Structure name, Enthalpy (kJ/mol), Henry coeff (mol/kg/Pa), Accessible Surface (m2/cm3), Time (s)
+  // Structure name, Enthalpy (kJ/mol), Henry coeff (mol/kg/Pa), Accessible Surface Area (m2/cm3), Time (s)
   cout << structure_file << "," << enthalpy_surface << "," << henry_surface << "," << area_accessible << "," << elapsed_time_ms*0.001 << endl;
 }
