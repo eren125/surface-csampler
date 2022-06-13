@@ -5,9 +5,11 @@
 #include <gemmi/smcif.hpp>      // cif::Document -> SmallStructure
 #include <gemmi/symmetry.hpp>   // Space Group manipulation
 #include <gemmi/unitcell.hpp>
+#include <unordered_map>
 
 #define R 8.31446261815324e-3 // kJ/mol/K
 #define sqrt_2 1.414213562373095
+#define min_factor 1.122462048309373  // 2^(1/6)
 #define N_A 6.02214076e23    // part/mol
 
 using namespace std;
@@ -71,7 +73,6 @@ int main(int argc, char* argv[]) {
   structure.cell.set_cell_images_from_spacegroup(sg);
   vector<gemmi::SmallStructure::Site> unique_sites = structure.sites;
   vector<gemmi::SmallStructure::Site> all_sites = structure.get_all_unit_cell_sites();
-  int image_num = structure.cell.images.size();
 
   // Cell parameters
   double a = structure.cell.a; double b = structure.cell.b; double c = structure.cell.c; 
@@ -105,7 +106,8 @@ int main(int argc, char* argv[]) {
   vector<array<double,5>> supracell_sites;
   gemmi::Fractional coord_temp;
   string element_host_str_temp = "X";
-  // TODO Think about a preselection
+
+  unordered_map<string, int> sym_counts;
   for (auto site: all_sites) {
     element_host_str = site.type_symbol;
     if (element_host_str != element_host_str_temp) {
@@ -116,6 +118,7 @@ int main(int argc, char* argv[]) {
     }
     element_host_str_temp = element_host_str;
     gemmi::Fractional coord = site.fract;
+    ++sym_counts[site.label];
     for (int n = -n_max; (n<n_max+1); ++n){
       for (int m = -m_max; (m<m_max+1); ++m) {
         for (int l = -l_max; (l<l_max+1); ++l) {
@@ -151,10 +154,11 @@ int main(int argc, char* argv[]) {
     // Get LJ parameters
     element_host_str = site.type_symbol;
     sigma_host = ff_params.get_sigma(element_host_str, false);
-    radius = sqrt_2 * (sigma_guest+sigma_host);
+    radius = min_factor * 0.5 * (sigma_guest+sigma_host);
     gemmi::Element el(element_host_str.c_str());
+    int sym_count = sym_counts[site.label];
     
-    mass += el.weight();
+    mass += sym_count * el.weight();
     gemmi::Vec3 Vsite = gemmi::Vec3(structure.cell.orthogonalize(site.fract));
     // Cell list pruning to have only the sites that are within (cutoff + radius) of the unique site
     neighbor_sites = {};
@@ -185,7 +189,7 @@ int main(int argc, char* argv[]) {
       boltzmann_energy_lj += exp_energy*energy_lj;
     }
   }
-  double Framework_density = (image_num+1)*1e-3*mass/(N_A*structure.cell.volume*1e-30);      // kg/m3
+  double Framework_density = 1e-3*mass/(N_A*structure.cell.volume*1e-30);      // kg/m3
   double enthalpy_surface = boltzmann_energy_lj/sum_exp_energy - R*temperature;                                 // kJ/mol
   double henry_surface = 1e-3*sum_exp_energy/(R*temperature)/(unique_sites.size()*num_steps)/Framework_density; // mol/kg/Pa
   chrono::high_resolution_clock::time_point t_end = chrono::high_resolution_clock::now();

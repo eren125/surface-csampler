@@ -5,10 +5,11 @@
 #include <gemmi/smcif.hpp>      // cif::Document -> SmallStructure
 #include <gemmi/symmetry.hpp>   // Space Group manipulation
 #include <gemmi/unitcell.hpp>
-
+#include <unordered_map>
 // Set key constants
 #define R 8.31446261815324e-3 // kJ/mol/K
 #define sqrt_2 1.414213562373095
+#define min_factor 1.122462048309373  // 2^(1/6)
 #define N_A 6.02214076e23    // part/mol
 
 using namespace std;
@@ -104,6 +105,7 @@ int main(int argc, char* argv[]) {
   gemmi::Fractional coord_temp;
   string element_host_str_temp = "X";
 
+  unordered_map<string, int> sym_counts;
   for (auto site: all_sites) {
     element_host_str = site.type_symbol;
     if (element_host_str != element_host_str_temp) {
@@ -114,6 +116,7 @@ int main(int argc, char* argv[]) {
     }
     element_host_str_temp = element_host_str;
     gemmi::Fractional coord = site.fract;
+    ++sym_counts[site.label];
     for (int n = -n_max; (n<n_max+1); ++n){
       for (int m = -m_max; (m<m_max+1); ++m) {
         for (int l = -l_max; (l<l_max+1); ++l) {
@@ -135,6 +138,8 @@ int main(int argc, char* argv[]) {
     }
   }
 
+  if (sym_counts.size() != unique_sites.size()) {throw invalid_argument( "Can't generate symmetry mapping for unique sites, make sure each atoms have a unique label" );}
+
   // vector<gemmi::Vec3> sphere_distr_vector = generateSphereNormalRandom(num_steps);
   // vector<gemmi::Vec3> sphere_distr_vector = generateSphereAngleRandom(num_steps);
   // vector<gemmi::Vec3> sphere_distr_vector = generateSphereCubeRandom(num_steps);
@@ -150,18 +155,17 @@ int main(int argc, char* argv[]) {
   double radius;
   double energy_lj;
   vector<array<double,6>> neighbor_sites;
-  int count_acc = 0;
-  double surface = 0;
+  double area_accessible = 0;
 
   for ( gemmi::SmallStructure::Site site: unique_sites ) {
     // Get LJ parameters
     element_host_str = site.type_symbol;
     sigma_host = ff_params.get_sigma(element_host_str, false);
-    radius = sqrt_2 * (sigma_guest+sigma_host);
-    surface += 4 * M_PI * radius * radius;
+    radius = min_factor * 0.5 * (sigma_guest+sigma_host);
+    int sym_count = sym_counts[site.label];
 
     gemmi::Element el(element_host_str.c_str());
-    mass += el.weight();
+    mass += sym_count * el.weight();
     gemmi::Vec3 Vsite = gemmi::Vec3(structure.cell.orthogonalize(site.fract));
     // Cell list pruning to have only the sites that are within (cutoff + radius) of the unique site
     neighbor_sites = {};
@@ -170,23 +174,21 @@ int main(int argc, char* argv[]) {
       if (dist < cutoff + radius) {neighbor_sites.push_back(pos_epsilon_sigma);}
     }
     // Loop around the sphere surface of the unique site
+    int count_acc = 0; // count accessible points
     for (gemmi::Vec3 V: sphere_distr_vector) {
       V *= radius;
       // Lennard Jones interaction energies
       energy_lj = 0;
       gemmi::Vec3 pos_neigh;
+      bool free = true;
       for(array<double,6> pos_epsilon_sigma : neighbor_sites) {
+        double energy_temp = 0;
         pos_neigh = gemmi::Vec3(pos_epsilon_sigma[0], pos_epsilon_sigma[1], pos_epsilon_sigma[2]);
         distance_sq = (V+Vsite).dist_sq(pos_neigh);
         sigma_sq = pos_epsilon_sigma[4];
         if (distance_sq < sigma_sq*access_coeff_sq) {
-          // epsilon = pos_epsilon_sigma[3];
-          // sigma_6 = pos_epsilon_sigma[5];
-          // inv_distance_6 = 1.0 / ( distance_sq * distance_sq * distance_sq );
-          // inv_distance_12 = inv_distance_6 * inv_distance_6;
-          // energy_lj = epsilon * sigma_6 * ( sigma_6 * (inv_distance_12 - inv_cutoff_12) - inv_distance_6 + inv_cutoff_6 );
           energy_lj = 1e10;
-          // count_acc -= 1;
+          free = false;
           break;
         }
         else if (distance_sq < cutoff_sq) {
@@ -194,25 +196,23 @@ int main(int argc, char* argv[]) {
           sigma_6 = pos_epsilon_sigma[5];
           inv_distance_6 = 1.0 / ( distance_sq * distance_sq * distance_sq );
           inv_distance_12 = inv_distance_6 * inv_distance_6;
-          energy_lj += epsilon * sigma_6 * ( sigma_6 * (inv_distance_12 - inv_cutoff_12) - inv_distance_6 + inv_cutoff_6 );
+          energy_temp = epsilon * sigma_6 * ( sigma_6 * (inv_distance_12 - inv_cutoff_12) - inv_distance_6 + inv_cutoff_6 );
         }
+        if (energy_temp > 0) { free = false; }
+        energy_lj += energy_temp;
       }
       energy_lj *= 4*R;
-      if ( energy_lj <= -R*temperature ){
-        count_acc++;
-      }
+      if ( free ) {count_acc++;}
       exp_energy = exp(-energy_lj/(R*temperature)); 
       sum_exp_energy += exp_energy;
       boltzmann_energy_lj += exp_energy*energy_lj;
-      // count_acc++;
     }
+    area_accessible += radius * radius * sym_count * count_acc;
   }
-  double sym_images = structure.cell.images.size()+1;
-  double Framework_density = sym_images * 1e-3 * mass/(N_A*structure.cell.volume*1e-30); // kg/m3
+  double Framework_density = 1e-3 * mass/(N_A*structure.cell.volume*1e-30); // kg/m3
   double enthalpy_surface = boltzmann_energy_lj/sum_exp_energy - R*temperature;  // kJ/mol
   double henry_surface = 1e-3*sum_exp_energy/(R*temperature)/(unique_sites.size()*num_steps)/Framework_density;    // mol/kg/Pa
-  double area_accessible = 1e7 * sym_images * surface * count_acc / (num_steps * unique_sites.size() * structure.cell.volume * Framework_density); // m2/g
-
+  area_accessible *= 1e4 * M_PI / (2 * structure.cell.volume * num_steps); // m2/cm3 // Divided by 8 because of sigma and rmin diff
   chrono::high_resolution_clock::time_point t_end = chrono::high_resolution_clock::now();
   double elapsed_time_ms = chrono::duration<double, milli>(t_end-t_start).count();
   // Structure name, Enthalpy (kJ/mol), Henry coeff (mol/kg/Pa), Accessible Surface Area (m2/cm3), Time (s)
