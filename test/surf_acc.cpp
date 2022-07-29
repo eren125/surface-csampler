@@ -114,13 +114,12 @@ double LJEnergy_shifted(gemmi::Vec3 ads_position, vector<tuple<double, double, g
     gemmi::Position pos_neigh = get<2>(neigh);
     double distance = ads_position.dist(pos_neigh);
     double sigma = get<1>(neigh);
-    if (distance<sigma*acc_threshold) {
+    if (distance < sigma*acc_threshold) {
       Energy = std::numeric_limits<double>::infinity();
       break;
     }
-    else if (distance<cutoff) {
+    else if (distance < cutoff) {
       double epsilon = get<0>(neigh);
-      double sigma = get<1>(neigh);
       Energy += 4 * epsilon * ( pow(sigma / distance,12) - pow(sigma / cutoff,12) - pow(sigma / distance,6) + pow(sigma / cutoff,6) );
     }
   }
@@ -140,7 +139,7 @@ int main(int argc, char* argv[]) {
 //   double acc_threshold = 0.8;
 
   auto block = gemmi::cif::read_file(structure_file).sole_block();
-  gemmi::SmallStructure structure = gemmi::make_small_structure_from_block(block);
+  gemmi::SmallStructure structure = gemmi::make_structure(block);
 
   map<string, vector<string> > forcefield_dict = ReadFF(forcefield_path);
 
